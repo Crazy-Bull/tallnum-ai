@@ -1,0 +1,90 @@
+{
+  "name": "tallnum-desktop",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Tallnum 本地计算器",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "dist:win": "electron-vite build && electron-builder --win nsis --x64",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit",
+    "dist:dir": "electron-vite build && electron-builder --win --x64 --dir"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "18.19.130",
+    "@types/react": "18.3.27",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "electron": "30.5.1",
+    "electron-builder": "24.13.3",
+    "electron-vite": "2.3.0",
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
+  },
+  "build": {
+    "appId": "org.tallnum.calculator",
+    "productName": "Tallnum 计算器",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../automation",
+        "to": "automation",
+        "filter": [
+          "**/*.py",
+          "**/*.mjs",
+          "*.cpp",
+          "pending_value_*.exe",
+          "requirements.txt",
+          "!tests/**",
+          "!runs/**",
+          "!.deps/**",
+          "!__pycache__/**"
+        ]
+      },
+      {
+        "from": "native",
+        "to": "native"
+      },
+      {
+        "from": "../tallnum_reachable.cpp",
+        "to": "tallnum_reachable.cpp"
+      },
+      {
+        "from": "../aggressive-version/bin",
+        "to": "native/petsc",
+        "filter": [
+          "tallnum_policy_eval.exe",
+          "*.dll"
+        ]
+      },
+      {
+        "from": "assets/tray.png",
+        "to": "native/tray.png"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "Tallnum-Calculator-${version}-win-x64.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  }
+}
