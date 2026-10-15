@@ -40,7 +40,7 @@ export class AutomationManager {
       args.push('--cells', '7', '--max-leaf-target', String(cap), '--local-template-bounds', '--node-limit', '10000', '--leaf-targets', ...[...Array.from({ length: Math.floor(cap / 2) }, (_, i) => 2 * (i + 1)), 15].sort((a, b) => a - b).map(String))
     }
     if (this.plannerVersion === 2 && request.command === 'play' && existsSync(path.join(request.directory, 'actions.jsonl'))) args.push('--resume-current-game')
-    const child = spawn(process.env.TALLNUM_PYTHON || 'python', args,
+    const child = spawn('python', args,
     { cwd: root, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
     this.child = child
     let pending = ''

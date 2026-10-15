@@ -61,7 +61,7 @@ def main():
     parser.add_argument('--resume-current-game',action='store_true')
     parser.add_argument('--directory',type=Path,default=DIRECTORY)
     args=parser.parse_args()
-    os.environ['PATH']=str(Path(os.environ.get('TALLNUM_MSYS_ROOT', str(ROOT/'.tools/msys64')))/'ucrt64/bin')+os.pathsep+os.environ['PATH']
+    os.environ['PATH']=str(ROOT/'.tools/msys64/ucrt64/bin')+os.pathsep+os.environ['PATH']
     os.environ.setdefault('TALLNUM_POLICY_CACHE_MB','6144')
     route,catalog=prepare(args.directory)
     if args.prepare_only:

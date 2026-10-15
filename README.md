@@ -4,7 +4,15 @@ English | [简体中文](README.zh-CN.md)
 
 A local Tallnum solver and automation toolkit: a Windows desktop calculator, C++ state enumeration and value iteration, PETSc policy evaluation, and Python route planning, simulation, and browser control.
 
-This repository contains the source, assets, and documentation needed to build and run the application. Historical experiments, standalone test scripts, precomputed policies, browser profiles, and build dependencies are excluded. Small calculations can start from source; large targets may require substantial memory, disk space, and computation time.
+This repository contains source, assets, regression tests, and compact validation evidence. Large precomputed probability tables, full game replays, runtime checkpoints, browser profiles, and build dependencies are excluded. Small calculations can start from source; large targets may require substantial memory, disk space, and computation time.
+
+## Integrated progress
+
+The desktop application now includes a general probability-table route planner. Users can choose capacity, integer target, and allowed template contracts (at least five cells and target 24). Structural planning is separate from table binding, with distinct results for missing tables and incomplete searches. The objective first minimizes the highest five-cell template target, then its main-route call count. Calculator output contains success probabilities for all 36 pairs of visible previews.
+
+Execution improvements cover opening connections, spare workspace, recovery, and residual EDGE alignment. Tests using the same 100 seeds achieved 94/100 for ten-cell 8192 (308 stages, five-cell peak 60), 87/100 for 10240 (426 stages, five-cell peak 64 called 14 times on the main route), and 91/100 for 12288 (448 stages, five-cell peak 80 called 10 times). These are finite-sample results for specific versions, not guarantees for arbitrary routes.
+
+See the [progress and validation notes](docs/PROGRESS.zh-CN.md), [planner guide](automation/PROBABILITY_ROUTE_PLANNER.zh-CN.md), and [desktop guide](desktop/README.zh-CN.md). The five-cell target-64 cap belongs to the low-order 10240 route, not the general planner.
 
 ## Source layout
 
@@ -176,9 +184,9 @@ Values and policies must match their transition table. This small calculation is
 Use the same directory and target throughout the workflow:
 
 ```powershell
-python -m automation plan --directory automation/runs/768 --target 768
-python -m automation prepare --directory automation/runs/768 --target 768
-python -m automation validate --directory automation/runs/768 --target 768 --candidate-limit 1 --attempts 100
+python -m automation plan --directory automation/runs/<run-directory> --target 768
+python -m automation prepare --directory automation/runs/<run-directory> --target 768
+python -m automation validate --directory automation/runs/<run-directory> --target 768 --candidate-limit 1 --attempts 100
 ```
 
 `plan` writes the decomposition and lists missing policies. A missing-policy result is expected on the first run. `prepare` generates, solves and certifies them; large calculations can take a long time. Rerunning in the same directory reuses completed results. `validate` simulates candidate routes. One candidate and 100 attempts are a low-budget check, not an exhaustive comparison or a long-term win-rate guarantee.
@@ -203,7 +211,7 @@ python -m automation route validate --directory automation/runs/route192 --attem
 Enable remote debugging at Chrome's `chrome://inspect/#remote-debugging`, open the game tab, and accept the browser connection prompt. You can also supply a debugging endpoint using `--cdp-endpoint`. For Edge, add `--browser msedge`.
 
 ```powershell
-python -m automation play --directory automation/runs/768 --target 768
+python -m automation play --directory automation/runs/<run-directory> --target 768
 # For a version 2 route, use its corresponding entry point and directory:
 python -m automation route play --directory automation/runs/route192
 ```
@@ -211,10 +219,10 @@ python -m automation route play --directory automation/runs/route192
 The desktop controls provide pause, single step and continuous play. For CLI control, write `control.json` in the data directory:
 
 ```powershell
-'{"mode":"paused"}' | Set-Content automation/runs/768/control.json -Encoding ascii
-@{mode='step';token=[DateTime]::UtcNow.Ticks} | ConvertTo-Json -Compress | Set-Content automation/runs/768/control.json -Encoding ascii
-'{"mode":"run"}'    | Set-Content automation/runs/768/control.json -Encoding ascii
-'{"mode":"stop"}'   | Set-Content automation/runs/768/control.json -Encoding ascii
+'{"mode":"paused"}' | Set-Content automation/runs/<run-directory>/control.json -Encoding ascii
+@{mode='step';token=[DateTime]::UtcNow.Ticks} | ConvertTo-Json -Compress | Set-Content automation/runs/<run-directory>/control.json -Encoding ascii
+'{"mode":"run"}'    | Set-Content automation/runs/<run-directory>/control.json -Encoding ascii
+'{"mode":"stop"}'   | Set-Content automation/runs/<run-directory>/control.json -Encoding ascii
 ```
 
 Every single-step request needs a new `token`; the command above generates one automatically.

@@ -112,15 +112,18 @@ def witness(plan):
         boot=[*initial32,*recipe(32),*recipe(64),
               *recipe(40),*recipe(40),*recipe(40),('group-last',2),('edge',None),*recipe(24)]
         opening_target=48
-    elif 10 in checkpoints:
+    elif any(t in checkpoints for t in (10,20,40)):
         # 256 + Group(240,12,2) -> EDGE 50;
         # 50 + Group(40,12) -> EDGE 10. Unlocks are permanent.
         boot=[*initial32,*recipe(32),*recipe(64),*recipe(64),*recipe(64),
               *(recipe(60)*4),*recipe(12),2,('group-last',3),('edge',None),
               *recipe(40),*recipe(12),('group-last',2),('edge',None)]
         opening_target=10
+        while opening_target not in checkpoints:
+            boot+=recipe(opening_target)
+            opening_target*=2
     else:
-        raise ValueError('No supported standalone ordinary opening checkpoint (10 or 48)')
+        raise ValueError('No supported standalone ordinary opening checkpoint (10, 20, 40 or 48)')
     opening_end=checkpoints[opening_target]
     ops=list(boot)
     last,repeat=None,0

@@ -5,6 +5,7 @@ import readline from 'node:readline';
 import {fileURLToPath} from 'node:url';
 import {createTallnumGame,dropTile,rotateTower,groupTiles,edgeMerge} from './vendor/tallnum.mjs';
 const path=process.argv[2];
+const discardActionLog=process.argv.includes('--discard-action-log');
 const helper=fileURLToPath(new URL('./stream_replay_report.py',import.meta.url));
 const python=process.env.TALLNUM_PYTHON || 'python';
 const source=spawn(python,[helper,path],{stdio:['ignore','pipe','inherit']});
@@ -24,6 +25,9 @@ try {
     assert.deepEqual(state.queue,replay.initial.queue);
     assert.equal(state.rngState,replay.initial.rngState);
     for(const row of replay.trace){
+      // The complete trace is stored in the evidence. Game rules do not read
+      // actionLog; avoid copying its growing diagnostic history at each step.
+      if(discardActionLog)state.actionLog=[];
       const a=row.action;
       if(a.kind==='drop')state=dropTile(state);
       else if(a.kind==='up'||a.kind==='down')state=rotateTower(state,a.kind);
@@ -42,7 +46,8 @@ try {
   }
   await finished;
   if(!games)throw Error('Validation report contains no replays');
-  const result={games,actions,seededRngParity:true,forcedDraws:false};
+  const result={games,actions,seededRngParity:true,forcedDraws:false,
+    ...(discardActionLog ? {diagnosticActionLogDiscarded:true} : {})};
   const saved=spawnSync(python,[helper,'--attach',path,JSON.stringify(result)],{encoding:'utf8'});
   if(saved.error)throw saved.error;
   if(saved.status!==0)throw Error(saved.stderr || 'Cannot save original engine check');

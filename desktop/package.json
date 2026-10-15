@@ -1,6 +1,6 @@
 {
   "name": "tallnum-desktop",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Tallnum 本地计算器",
   "main": "./out/main/index.js",
@@ -39,6 +39,10 @@
     ],
     "extraResources": [
       {
+        "from": "peak13-assets",
+        "to": "peak13-assets"
+      },
+      {
         "from": "../automation",
         "to": "automation",
         "filter": [
@@ -47,6 +51,7 @@
           "*.cpp",
           "pending_value_*.exe",
           "requirements.txt",
+          "README.zh-CN.md",
           "!tests/**",
           "!runs/**",
           "!.deps/**",

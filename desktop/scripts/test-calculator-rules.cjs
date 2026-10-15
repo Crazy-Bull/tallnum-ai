@@ -1,0 +1,26 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const Module = require('node:module')
+const ts = require('typescript')
+const source = path.resolve(__dirname, '../src/calculator-rules.ts')
+const mod = new Module(source, module)
+mod._compile(ts.transpileModule(fs.readFileSync(source, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, source)
+const { normalizeRules, validateExitRules, generatorRuleArgs, assertModelRules } = mod.exports
+const base = { cells: 5, target: 48, aggressiveness: 0, maxGoalCells: 5, bases: [1, 3, 5, 15], successSide: 'above' }
+assert.equal(normalizeRules(base).successNoExtraCombos, true)
+assert.throws(() => validateExitRules({ ...base, exitKind: 'single' }), /1 格/)
+assert.throws(() => validateExitRules({ ...base, exitKind: 'extend' }), /4 格/)
+assert.throws(() => validateExitRules({ ...base, exitKind: 'match', successNoExtraCombos: false }), /干净/)
+assert.throws(() => validateExitRules({ ...base, matchEdgeGuard: true }), /match/)
+assert.throws(() => validateExitRules({ ...base, exitKind: 'single', maxGoalCells: 1, singleTidyExit: true }), /六格/)
+assert.throws(() => validateExitRules({ ...base, singleTidyExit: 'false' }), /布尔/)
+const single = { ...base, cells: 6, maxGoalCells: 1, exitKind: 'single', singleTidyExit: true, singleEdgeGuard: true, allBases: true }
+const args = generatorRuleArgs(single)
+assert.equal(args[args.indexOf('--bases') + 1], 'all')
+assert.equal(args[args.indexOf('--single-tidy-exit') + 1], '1')
+const model = { maxValue: 48, successNoExtraCombos: true, matchEdgeGuard: false, singleEdgeGuard: true, singleTidyExit: true }
+assertModelRules(model, single)
+assert.throws(() => assertModelRules({ ...model, singleTidyExit: false }, single), /不一致/)
+assert.throws(() => assertModelRules({ maxValue: 48 }, single), /不一致/)
+console.log('Calculator rule validation, CLI mapping and metadata checks passed.')

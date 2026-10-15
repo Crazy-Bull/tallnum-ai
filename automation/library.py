@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import subprocess
 import struct
+import gzip
+import hashlib
 from collections import OrderedDict
 from copy import deepcopy
 from contextlib import contextmanager
@@ -17,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 NATIVE_DIR = ROOT / ('desktop/native' if (ROOT/'desktop/native').exists() else 'native')
 NATIVE = NATIVE_DIR / 'tallnum_automation_clean.exe'
 MODEL = ROOT / 'tallnum_reachable.cpp'
-SHARED_CLEAN_LIBRARY = Path(os.environ.get('TALLNUM_SHARED_LIBRARY', str(ROOT/'automation/runs/shared-clean')))
+SHARED_CLEAN_LIBRARY = Path('F:/TallnumData/tallnumai-cleanexit')
 
 
 def current_rule():
@@ -34,7 +36,7 @@ def table_rule(table):
     if not meta.exists():
         return None
     data=json.loads(meta.read_text(encoding='utf-8'))
-    if data.get('tableSha256') != fingerprint(table):
+    if data.get('tableSha256') != table_fingerprint(table):
         raise ValueError(f'Transition table changed since rule certification: {table}')
     model=Path(str(table)+'.model.json')
     if (model.exists() or data.get('modelSha256')) and (not model.exists() or data.get('modelSha256')!=fingerprint(model)):
@@ -50,8 +52,41 @@ def run_checked(args, **kwargs):
     return p.stdout
 
 
+def open_table(path):
+    if Path(path).exists():return open(path,'rb')
+    compressed=Path(str(path)+'.gz')
+    if compressed.exists():return gzip.open(compressed,'rb')
+    return open(path,'rb')
+
+
+_TABLE_FINGERPRINTS={}
+
+
+def table_fingerprint(path):
+    # Reopened workers share immutable certified tables. Verify each file once
+    # per process, then reuse the digest while its filesystem identity holds.
+    source=Path(path)
+    if not source.exists():
+        source=Path(str(path)+'.gz')
+    stat=source.stat()
+    key=(str(source.resolve()),stat.st_dev,stat.st_ino,stat.st_size,stat.st_mtime_ns)
+    cached=_TABLE_FINGERPRINTS.get(key)
+    if cached is not None:
+        return cached
+    if Path(path).exists():
+        digest=fingerprint(path)
+        _TABLE_FINGERPRINTS[key]=digest
+        return digest
+    digest=hashlib.sha256()
+    with open_table(path) as inp:
+        for chunk in iter(lambda:inp.read(1024*1024),b''):digest.update(chunk)
+    result=digest.hexdigest()
+    _TABLE_FINGERPRINTS[key]=result
+    return result
+
+
 def table_header(path):
-    with open(path, 'rb') as f:
+    with open_table(path) as f:
         if f.read(8) != b'TALLTRN4':
             raise ValueError('Not v4')
         version, cells, target, states, span, above, count = struct.unpack('<IIIQIII', f.read(32))
@@ -63,19 +98,39 @@ def table_header(path):
     guard=model.get('matchEdgeGuard',False)
     single_guard=model.get('singleEdgeGuard',False)
     tidy=model.get('singleTidyExit',False)
+    protected_head=model.get('singleProtectedHead')
+    protected_value=model.get('singleProtectedValue')
+    disable_edge=model.get('disableEdge',False)
+    extension_exit=model.get('extensionExit',False)
+    if not isinstance(extension_exit,bool):raise ValueError('Invalid extension exit flag')
+    if not isinstance(disable_edge,bool):raise ValueError('Invalid no-EDGE model flag')
+    if protected_value is not None and (type(protected_value) is not int or not 1<=protected_value<=65535
+                                       or protected_head!=protected_value//10 or not (single_guard or guard)):
+        raise ValueError('Invalid explicit single protected value')
+    if protected_head is not None and (type(protected_head) is not int or not 0<=protected_head<=6553
+                                      or (protected_head==0 and protected_value is None) or not (single_guard or guard)):
+        raise ValueError('Invalid explicit single protected head')
     if not isinstance(single_guard,bool) or not isinstance(tidy,bool):
         raise ValueError('Invalid six-cell single model condition')
-    if (single_guard or tidy) and (cells!=6 or span!=1 or not clean):
-        raise ValueError('Six-cell single rules require a clean single table')
+    if (single_guard or tidy) and (cells not in (5,6) or (single_guard and cells!=6 and protected_head is None)
+                                 or (span!=1 and (not guard or single_guard)) or not clean):
+        raise ValueError('Single rules require a clean five/six-cell single table; EDGE guard requires six cells')
     if not isinstance(guard,bool):
         raise ValueError('Invalid matchEdgeGuard model condition')
     if not isinstance(clean,bool):
         raise ValueError('Invalid successNoExtraCombos model condition')
+    if extension_exit and (cells!=5 or not 2<=span<=4 or not clean or not tidy or protected_value is None):
+        raise ValueError('Extension exits require a clean tidy five-cell table and actual anchor')
     if not isinstance(maximum,int) or not target <= maximum <= 65535:
         raise ValueError('Invalid maximum intermediate value')
-    return dict(version=version, cells=cells, target=target, states=states, maxValue=maximum,
+    result=dict(version=version, cells=cells, target=target, states=states, maxValue=maximum,
                 maxGoalCells=span, above=above, bases=bases, successNoExtraCombos=clean, matchEdgeGuard=guard,
                 singleEdgeGuard=single_guard,singleTidyExit=tidy)
+    if protected_head is not None:result['singleProtectedHead']=protected_head
+    if protected_value is not None:result['singleProtectedValue']=protected_value
+    if extension_exit:result['extensionExit']=True
+    if disable_edge:result['disableEdge']=True
+    return result
 
 
 def discover(root=ROOT):
@@ -211,6 +266,8 @@ def register(directory, table, source, exit_kind, native=NATIVE, *, variant_aggr
         raise ValueError('Cached policy victory condition differs from its table')
     item.update(bases=h['bases'], cells=h['cells'], maxGoalCells=h['maxGoalCells'],
                 successNoExtraCombos=h['successNoExtraCombos'],matchEdgeGuard=h['matchEdgeGuard'])
+    if h['singleEdgeGuard'] or h['singleTidyExit']:
+        item.update(singleEdgeGuard=h['singleEdgeGuard'],singleTidyExit=h['singleTidyExit'])
     if variant_aggressiveness is not None:
         item['variantAggressiveness']=float(variant_aggressiveness)
     else:
@@ -298,6 +355,13 @@ def prepare_missing(directory, missing, rounds=5000, native=NATIVE):
 
 class PolicyWorker:
     def __init__(self, item, native=NATIVE, _reuse_validated_identity=False):
+        child_env=os.environ.copy()
+        runtime_directory=ROOT/'.tools/msys64/ucrt64/bin'
+        if runtime_directory.exists():
+            child_env['PATH']=str(runtime_directory)+os.pathsep+child_env.get('PATH','')
+        if not Path(item['table']).exists() and Path(str(item['table'])+'.gz').exists() and not (
+                item.get('pendingValue') and item.get('disableStaticFallback')):
+            raise ValueError('Compressed tables require pending search with static fallback disabled')
         self._fallback=None
         self._fallback_item=None
         native=Path(item.get('nativeBridge',native))
@@ -308,19 +372,25 @@ class PolicyWorker:
                 raise ValueError('Uncertified model or altered bound')
             if item.get('maxValue',item['target'])!=table_header(item['table'])['maxValue']:
                 raise ValueError('Policy maximum value does not match its transition table')
-            if fingerprint(item['policy']) != item['policySha256'] or fingerprint(item['table']) != item['hashes']['table']:
+            pending_only=(item.get('pendingOnlyIdentity') and item.get('pendingValue')
+                          and item.get('disableStaticFallback'))
+            if ((not pending_only and fingerprint(item['policy']) != item['policySha256'])
+                    or table_fingerprint(item['table']) != item['hashes']['table']):
                 raise ValueError('Policy/table fingerprint mismatch')
         pending=item.get('pendingValue')
         self.item_pending=bool(pending)
         for field in ('singleEdgeGuard','singleTidyExit'):
             if item.get(field,False)!=table_header(item['table']).get(field,False):
                 raise ValueError('Policy/table single rule mismatch: '+field)
+        for field,default in (('singleProtectedHead',None),('singleProtectedValue',None),('disableEdge',False),('extensionExit',False)):
+            if item.get(field,default)!=table_header(item['table']).get(field,default):
+                raise ValueError('Policy/table real-boundary rule mismatch: '+field)
         if pending is not None:
             # If a live state falls outside the saved W frontier, preserve the
             # old fixed-policy executor as a local fallback. The two workers
             # share the exact certified policy/table; this only affects the
             # opt-in search mode.
-            self._fallback_item=dict(item) if item.get('cells',5)==5 else None
+            self._fallback_item=dict(item) if item.get('cells',5)==5 and not item.get('disableStaticFallback') else None
             if self._fallback_item is not None:
                 for key in ('pendingValue','pendingValueSha256','pendingValueMeta','pendingNative'):
                     self._fallback_item.pop(key,None)
@@ -338,6 +408,10 @@ class PolicyWorker:
             pending_meta=json.loads(Path(meta_path).read_text(encoding='utf-8'))
             header=table_header(item['table'])
             fmt=pending_meta.get('format')
+            if (header.get('singleProtectedValue') is not None or header.get('disableEdge')) and fmt not in ('TNPEND05','TNPEND06'):
+                raise ValueError('Real boundary/no-EDGE models require TNPEND05')
+            if header.get('extensionExit') and fmt!='TNPEND06':
+                raise ValueError('Physical extension models require TNPEND06')
             if fmt=='TNPEND01':
                 if item.get('cells',5)!=5 or item.get('exit')!='single' or header['matchEdgeGuard']:
                     raise ValueError('Legacy pending values support only unguarded five-cell single definitions')
@@ -346,8 +420,9 @@ class PolicyWorker:
                           'target':item['target'],'exit':item['exit'],
                           'successNoExtraCombos':header['successNoExtraCombos'],
                           'matchEdgeGuard':False}
-            elif fmt in ('TNPEND02','TNPEND03'):
-                if header['cells']==6 and item.get('exit')!='single':
+            elif fmt in ('TNPEND02','TNPEND03','TNPEND04','TNPEND05','TNPEND06'):
+                if header['cells']==6 and item.get('exit')!='single' and not (
+                        fmt=='TNPEND05' and header.get('disableEdge') and item.get('exit')=='match'):
                     raise ValueError('Six-cell pending-value search supports single exits only')
                 if item.get('exit')=='buffer' and (header['cells']!=5 or header['maxGoalCells']>4):
                     raise ValueError('Buffer pending-value search requires a five-cell buffer model with maxGoalCells <= 4')
@@ -358,9 +433,17 @@ class PolicyWorker:
                           'matchEdgeGuard':header['matchEdgeGuard'],
                           'maxValue':header['maxValue'],'maxGoalCells':header['maxGoalCells'],
                           'cells':header['cells']}
-                if fmt=='TNPEND03':
+                if fmt in ('TNPEND03','TNPEND04','TNPEND05','TNPEND06'):
                     expected.update(singleEdgeGuard=header.get('singleEdgeGuard',False),
                                     singleTidyExit=header.get('singleTidyExit',False))
+                    if fmt in ('TNPEND04','TNPEND05','TNPEND06'):expected['singleProtectedHead']=header.get('singleProtectedHead')
+                    elif header.get('singleProtectedHead') is not None:
+                        raise ValueError('Explicit single boundary requires TNPEND04')
+                    if fmt in ('TNPEND05','TNPEND06'):expected.update(singleProtectedValue=header.get('singleProtectedValue'),
+                                                       disableEdge=header.get('disableEdge',False))
+                    elif header.get('singleProtectedValue') is not None or header.get('disableEdge'):
+                        raise ValueError('Real boundary/no-EDGE models require TNPEND05')
+                    if fmt=='TNPEND06':expected['extensionExit']=header.get('extensionExit',False)
                 elif header.get('singleEdgeGuard') or header.get('singleTidyExit'):
                     raise ValueError('Strict single rules require TNPEND03')
             else:
@@ -370,6 +453,7 @@ class PolicyWorker:
             command=[str(item['pendingNative']), 'query', str(pending)]
             self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE, text=True, encoding='utf-8',
+                env=child_env,
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             ready=self._response()
             if ready.get('status')!='ready':
@@ -402,11 +486,12 @@ class PolicyWorker:
         if not valid:
             temporary=cache.with_suffix('.tmp')
             event('query-cache',target=item['target'],exit=item['exit'])
-            run_checked([native,item['table'],item['policy'],interface,'cache',temporary])
+            run_checked([item.get('cacheBuilderNative',native),item['table'],item['policy'],interface,'cache',temporary])
             os.replace(temporary,cache)
             atomic_json(meta,{**expected,'sha256':fingerprint(cache)})
         self.process = subprocess.Popen([str(native), 'query', str(cache), interface],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            env=child_env,
             encoding='utf-8', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         ready=self._response()
         if ready.get('status')!='ready':
@@ -421,10 +506,12 @@ class PolicyWorker:
             if line.startswith('{'):
                 return json.loads(line)
 
-    def query(self, board, fpos, queue):
+    def query(self, board, fpos, queue, excluded_posts=()):
         fields = [fpos, len(board), *queue]
         for t in board:
             fields.extend((t['value'], t['physicalCount'], int(t['kind'] == 'group')))
+        if excluded_posts:
+            fields.extend((len(excluded_posts),*excluded_posts))
         key=tuple(fields)
         if key in self.responses:
             self.responses.move_to_end(key)

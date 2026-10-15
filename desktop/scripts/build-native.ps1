@@ -25,3 +25,7 @@ Copy-Item -Path (Join-Path $workspace 'aggressive-version\bin\*.exe') -Destinati
 & (Join-Path $workspace 'automation/build.ps1')
 
 & (Join-Path $workspace 'automation/build-pending.ps1')
+
+# The current generator owns clean-exit and EDGE metadata.
+& $msys -lc ("cd '$workspaceShell' && " + 'g++ -O3 -std=c++20 -Wno-deprecated-declarations tallnum_reachable.cpp -o desktop/native/tallnum_reachable.exe')
+if ($LASTEXITCODE -ne 0) { throw 'Current transition generator compile failed' }

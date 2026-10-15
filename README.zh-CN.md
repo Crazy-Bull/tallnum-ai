@@ -4,7 +4,15 @@
 
 Tallnum 的本地计算与辅助工具，提供 Windows 桌面计算器、C++ 状态枚举和值迭代、PETSc 策略评估，以及 Python 路线规划、模拟验证和网页自动玩。
 
-本仓库只保留运行、构建所需的源码、资源和说明。测试脚本、历史回放工具、一次性实验脚本、预计算策略及浏览器资料不随源码发布。小规模计算可直接从源码开始；大目标的状态空间和策略库可能很大，需要较长计算时间和足够内存、磁盘空间。
+本仓库保留运行、构建所需的源码、资源、回归测试与精简验证记录。大型预计算概率表、完整逐局回放、运行检查点及浏览器资料不随源码发布。小规模计算可直接从源码开始；大目标的状态空间和定式库可能很大，需要较长计算时间和足够内存、磁盘空间。
+
+## 本轮进展
+
+已整合通用概率表路线规划器及桌面界面：可指定容量、任意整数目标及允许使用的定式规格（至少五格、目标至少24），先规划结构，再核对概率表。优化顺序为先降低最高阶五格定式，再减少其主路线调用次数；缺表、预算不足与已绑定候选路线分别报告。计算器输出两枚可见待出数对应的36种状态成功概率。
+
+路线执行加入真实开局衔接、空余容量利用、回退和EDGE残留连接修复。相同100个种子的概率表测试结果为：十格8192为94/100（308阶段，最高五格60），10240为87/100（426阶段，最高五格64、主路线14次），12288为91/100（448阶段，最高五格80、主路线10次）。这些是指定版本的有限样本结果，不是任意路线的胜率保证。
+
+使用入口、数据缺口、逐局摘要和验证范围见[进展与验证记录](docs/PROGRESS.zh-CN.md)、[通用规划器说明](automation/PROBABILITY_ROUTE_PLANNER.zh-CN.md)及[桌面说明](desktop/README.zh-CN.md)。五格64上限仅属于10240低阶路线约定，不是通用规划器的限制。
 
 ## 目录
 
@@ -172,9 +180,9 @@ try {
 在项目根目录执行，所有步骤使用同一个数据目录和目标：
 
 ```powershell
-python -m automation plan --directory automation/runs/768 --target 768
-python -m automation prepare --directory automation/runs/768 --target 768
-python -m automation validate --directory automation/runs/768 --target 768 --candidate-limit 1 --attempts 100
+python -m automation plan --directory automation/runs/<run-directory> --target 768
+python -m automation prepare --directory automation/runs/<run-directory> --target 768
+python -m automation validate --directory automation/runs/<run-directory> --target 768 --candidate-limit 1 --attempts 100
 ```
 
 - `plan` 生成拆解并列出缺失定式，首次没有策略数据时出现缺失列表是正常状态。
@@ -201,7 +209,7 @@ python -m automation route validate --directory automation/runs/route192 --attem
 先在 Chrome 的 `chrome://inspect/#remote-debugging` 中启用远程调试，打开游戏标签页，并接受浏览器的连接提示。也可通过 `--cdp-endpoint` 指定已启用调试的浏览器端点。Edge 使用 `--browser msedge`。
 
 ```powershell
-python -m automation play --directory automation/runs/768 --target 768
+python -m automation play --directory automation/runs/<run-directory> --target 768
 # 新版路线使用对应入口及目录：
 python -m automation route play --directory automation/runs/route192
 ```
@@ -209,10 +217,10 @@ python -m automation route play --directory automation/runs/route192
 推荐通过桌面页控制暂停、单步和连续运行。命令行模式通过数据目录下的 `control.json` 控制，例如：
 
 ```powershell
-'{"mode":"paused"}' | Set-Content automation/runs/768/control.json -Encoding ascii
-@{mode='step';token=[DateTime]::UtcNow.Ticks} | ConvertTo-Json -Compress | Set-Content automation/runs/768/control.json -Encoding ascii
-'{"mode":"run"}'    | Set-Content automation/runs/768/control.json -Encoding ascii
-'{"mode":"stop"}'   | Set-Content automation/runs/768/control.json -Encoding ascii
+'{"mode":"paused"}' | Set-Content automation/runs/<run-directory>/control.json -Encoding ascii
+@{mode='step';token=[DateTime]::UtcNow.Ticks} | ConvertTo-Json -Compress | Set-Content automation/runs/<run-directory>/control.json -Encoding ascii
+'{"mode":"run"}'    | Set-Content automation/runs/<run-directory>/control.json -Encoding ascii
+'{"mode":"stop"}'   | Set-Content automation/runs/<run-directory>/control.json -Encoding ascii
 ```
 
 每次单步命令的 `token` 必须变化，上面的命令会自动生成新值。

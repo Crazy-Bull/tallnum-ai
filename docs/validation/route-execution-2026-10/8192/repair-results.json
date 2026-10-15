@@ -1,0 +1,60 @@
+{
+  "maximumFiveCellTarget": 60,
+  "highestFiveCellCalls": 14,
+  "stages": 308,
+  "leafCounts": {
+    "6:32:single": 75,
+    "6:40:single": 41,
+    "5:24:single": 17,
+    "6:48:single": 45,
+    "5:48:match": 4,
+    "5:32:single": 10,
+    "5:32:match": 7,
+    "5:30:single": 3,
+    "6:36:single": 1,
+    "5:36:match": 1,
+    "6:28:single": 1,
+    "5:28:match": 1,
+    "5:56:match": 1,
+    "6:44:single": 1,
+    "5:44:match": 1,
+    "5:60:single": 7,
+    "5:60:match": 7,
+    "5:40:single": 5
+  },
+  "bufferRescueEvents": 2,
+  "connectionAlignments": 5,
+  "meanDropsSuccess": 5379.36170212766,
+  "validation": {
+    "target": 8192,
+    "cells": 10,
+    "routeSha256": "04b828f406b640a26ad9f1772ab1fc1c5a07541dee7e3c592ead89a08ecd74a7",
+    "attempts": 100,
+    "successes": 94,
+    "successRate": 0.94,
+    "unfinished": 0,
+    "maximumSuccessfulFive64Calls": 0,
+    "maximumSuccessfulHighestFiveCellCalls": 18,
+    "originalEngineVerified": true,
+    "probabilityOnly": true,
+    "forcedDraws": false,
+    "actionBudget": 100000,
+    "sources": {
+      "probability_route_validate.py": "ecd996c42af8a84d89232301d9a7facf1ff9d7fd3f30c2d914692815cf75f5dd",
+      "game.py": "0a80ac8b7f3a58d8710a93a88f99f2c537d351df50efd6d5b93bb04b71c6ed71",
+      "route_runtime.py": "1014ec0e03447e4e56791aa90db1ad0af8ae9a90265cd7a5df9a5e07bbfac426",
+      "entry_recovery.py": "865a85e57860ec707c285e37a415a8dae4a5f021dcaf7f6436c6abde8d905997",
+      "entry_bridge.py": "771de680328635a102d257d0d76f1518edf65c17ef3235e6c3fde06c19a2eaad",
+      "library.py": "325f51642a72f7b0b675cf4daf658b5207fc3a32a6566764d3d4ac5287697263",
+      "no80_full_game.py": "88b8052a7e0076413ff8f1dcd9ef9e093d0079d3639e16172e5f3c0b429aeae9",
+      "probability_route_execution.py": "1d0ae3162eed75b630d0b8cddb60a91fd7cb7fc31ccb3ce2ec67eda7b5a04517"
+    },
+    "failureReasons": {
+      "fixed-policy-dead": 3,
+      "stage-exit-contract-mismatch": 3
+    },
+    "summary": "D:\\tallnumai\\automation\\runs\\generic-plans\\execution-fix-v6\\10-8192\\validation-100\\summary.json"
+  },
+  "structuralAcceptancePassed": true,
+  "acceptancePassed": true
+}

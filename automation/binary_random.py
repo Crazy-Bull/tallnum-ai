@@ -1,9 +1,11 @@
 """Seeded real-rule stochastic tests of a binary route, with no forced draws."""
 import argparse
-from collections import Counter
+from collections import Counter, OrderedDict
 import json
+import os
 from pathlib import Path
 import random
+import shutil
 import time
 
 from . import game
@@ -11,6 +13,7 @@ from .binary_routes import verify_tree
 from .common import atomic_json, fingerprint
 from .route_runtime import RouteExecutor
 from .runtime import RouteFailure, IncompatibleState
+from .library import PolicyWorker
 from .validation import summarize
 
 
@@ -59,9 +62,52 @@ def initial_state(seed,cells,checkpoint=None):
     return state
 
 
-def run(plan,weights,attempts=100,seed=102401,checkpoint=None,max_actions=20000):
+def ephemeral_worker_factory(directory,*,persistent=False):
+    """Build query caches in a writable bounded scratch directory.
+
+    Policy libraries may be read-only. The native worker has loaded its query
+    cache by the time construction returns; retaining recent caches avoids
+    rebuilding the same first-stage policy for every seeded game.
+    """
+    directory=Path(directory) if persistent else Path(directory)/str(os.getpid())
+    directory.mkdir(parents=True,exist_ok=True)
+    retained=OrderedDict()
+    budget=4_100_000_000 if persistent else 800_000_000
+    def paths(identifier):
+        policy=directory/(identifier+'.policy.bin')
+        query=policy.with_suffix('.query.bin')
+        return policy,query,query.with_suffix('.json'),query.with_suffix('.tmp')
+    def create(item):
+        source=Path(item['policy'])
+        policy,query,metadata,temporary=paths(item['id'])
+        if (not policy.exists() or policy.stat().st_size!=source.stat().st_size
+                or persistent and fingerprint(policy)!=item['policySha256']):
+            shutil.copyfile(source,policy)
+        try:
+            worker=PolicyWorker({**item,'policy':str(policy)})
+        except Exception:
+            for path in (temporary,query,metadata,policy):path.unlink(missing_ok=True)
+            raise
+        retained[item['id']]=sum(path.stat().st_size for path in (policy,query,metadata))
+        retained.move_to_end(item['id'])
+        while len(retained)>1 and sum(retained.values())>budget:
+            old,_=retained.popitem(last=False)
+            for path in paths(old):path.unlink(missing_ok=True)
+        return worker
+    def cleanup():
+        if persistent:return
+        for identifier in list(retained):
+            for path in paths(identifier):path.unlink(missing_ok=True)
+        directory.rmdir()
+    create.cleanup=cleanup
+    create.transient_query_cache=True
+    return create
+
+
+def run(plan,weights,attempts=100,seed=102401,checkpoint=None,max_actions=20000,
+        worker_factory=None):
     route,catalog=compile_route(plan,weights,checkpoint)
-    executor=RouteExecutor(route,catalog)
+    executor=RouteExecutor(route,catalog,worker_factory or PolicyWorker)
     records=[];replays=[];start=time.monotonic()
     rng=random.Random(seed)
     seeds=rng.sample(range(1,2**32),attempts)
@@ -121,16 +167,21 @@ def main():
     parser.add_argument('--attempts',type=int,default=100)
     parser.add_argument('--seed',type=int,default=102401)
     parser.add_argument('--max-actions',type=int,default=20000)
+    parser.add_argument('--real-opening-only',action='store_true')
     args=parser.parse_args()
     if not 1<=args.attempts<=10000:parser.error('attempts must be 1..10000')
     plan=json.loads(args.plan.read_text());weights=json.loads(args.weights.read_text())
     reports=[]
-    for checkpoint in (None,10):
-        report=run(plan,weights,args.attempts,args.seed,checkpoint,args.max_actions)
-        reports.append(report)
-        atomic_json(args.output,{'planSha256':fingerprint(args.plan),'weightsSha256':fingerprint(args.weights),
-                                 'reports':reports})
-        print(json.dumps({k:v for k,v in report.items() if k not in ('records','replays')},indent=2),flush=True)
+    worker_factory=ephemeral_worker_factory(args.output.parent/'worker-cache')
+    try:
+        for checkpoint in ((None,) if args.real_opening_only else (None,10)):
+            report=run(plan,weights,args.attempts,args.seed,checkpoint,args.max_actions,
+                       worker_factory)
+            reports.append(report)
+            atomic_json(args.output,{'planSha256':fingerprint(args.plan),'weightsSha256':fingerprint(args.weights),
+                                     'reports':reports})
+            print(json.dumps({k:v for k,v in report.items() if k not in ('records','replays')},indent=2),flush=True)
+    finally:worker_factory.cleanup()
 
 
 if __name__=='__main__':main()

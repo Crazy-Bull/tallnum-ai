@@ -19,7 +19,7 @@ def main():
     parser.add_argument('--targets',nargs='+',type=int,default=[32,40])
     parser.add_argument('--max-value',type=int,default=48)
     parser.add_argument('--aggressiveness',type=float,default=.01)
-    parser.add_argument('--data-root',type=Path,default=Path(__file__).resolve().parents[1])
+    parser.add_argument('--data-root',type=Path,default=Path('F:/TallnumData/tallnumai-templates'))
     parser.add_argument('--strict-single',action='store_true',help='protect TARGET head; residual <=1 cell with value <=8')
     parser.add_argument('--generator',type=Path)
     parser.add_argument('--bridge',type=Path)
@@ -132,7 +132,7 @@ def main():
                '',f'构造人工终止概率为每次非成功投放 {args.aggressiveness*7.5/target:.12g}，成功最后一步豁免。',
                '所有统计评估均关闭该人工风险。方程评估为检查残差的浮点解；没有证明期望投放数全局最优。',
                '该模型没有采用真实游戏的隐藏队列或出数池解锁。',
-               '', '复算入口（在项目根目录运行，自动复用已完成阶段及未完成阶段的断点）：',
+               '', '复算入口（在D:\\tallnumai运行，自动复用已完成阶段及未完成阶段的断点）：',
                f'`python -m automation.six_template_compute --targets {target} --max-value {args.max_value} --aggressiveness {args.aggressiveness}`',
                '', '仅重新导出与评估：',
                f'`python -m automation.six_template_finish --workspace automation/runs/{work.name} --exact`',

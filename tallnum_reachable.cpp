@@ -26,7 +26,13 @@ static bool SUCCESS_NO_EXTRA_COMBOS = false;
 static bool MATCH_EDGE_GUARD = false;
 static bool SINGLE_EDGE_GUARD = false;
 static bool SINGLE_TIDY_EXIT = false;
+static int SINGLE_PROTECTED_HEAD = -1;
+static int SINGLE_PROTECTED_VALUE = -1;
+static bool DISABLE_EDGE = false;
+static bool EXTENSION_EXIT = false;
 static vector<int> BASES = {1,3,5,15};
+static int INITIAL_ORDINARY = 0;
+static bool KEEP_WARM_BASE = false;
 static constexpr array<int,6> SPAWN = {2,4,6,8,10,15};
 
 struct Block {
@@ -145,6 +151,9 @@ static bool isAllowedOrdinary(int v) {
 static bool boardWithinModel(const Board& b) {
     if (b.fpos > b.blocks.size()) return false;
     if (usedCells(b) > CAPACITY) return false;
+    if(KEEP_WARM_BASE && none_of(b.blocks.begin(),b.blocks.end(),[](const Block& x){
+        return !x.combo && (x.value==INITIAL_ORDINARY || x.value==TARGET);
+    }))return false;
     int combos = 0;
     for (auto const& x : b.blocks) {
         if (x.value <= 0 || x.value > (MAX_VALUE ? MAX_VALUE : TARGET)) return false;
@@ -167,6 +176,7 @@ static bool isSuccess(const Board& b) {
     auto acceptable = [&](size_t index) {
         auto const& goal=b.blocks[index];
         if(goal.value!=TARGET || goal.span>MAX_GOAL_CELLS)return false;
+        if(EXTENSION_EXIT && goal.combo)return false;
         if(SUCCESS_NO_EXTRA_COMBOS)
             for(size_t i=0;i<b.blocks.size();++i)
                 if(i!=index && b.blocks[i].combo)return false;
@@ -213,6 +223,11 @@ static bool mergePair(Board& b, int i) {
 // Ordinary automatic merge. Assumption: scan top -> bottom, and after each
 // merge restart from the top so chain merges happen immediately.
 static optional<Board> normalize(Board b) {
+    // The real engine resolves the protected/active ordinary boundary first.
+    // Two active equal blocks cannot shield an already equal anchor.
+    if(SINGLE_PROTECTED_VALUE>=0 && SINGLE_PROTECTED_VALUE!=TARGET &&
+       b.fpos<b.blocks.size() && b.blocks[b.fpos].value==SINGLE_PROTECTED_VALUE)
+        return nullopt;
     while (true) {
         bool changed = false;
         for (int i = (int)b.blocks.size() - 2; i >= 0; --i) {
@@ -226,6 +241,9 @@ static optional<Board> normalize(Board b) {
         if (!changed) break;
     }
     if (!boardWithinModel(b)) return nullopt;
+    if(SINGLE_PROTECTED_VALUE>=0 && b.fpos<b.blocks.size() &&
+       b.blocks[b.fpos].value==SINGLE_PROTECTED_VALUE &&
+       (SINGLE_PROTECTED_VALUE!=TARGET || !isSuccess(b)))return nullopt;
     return b;
 }
 
@@ -252,9 +270,11 @@ struct TempBlock {
 };
 
 static optional<Board> applyRightTurn(const Board& src) {
+    if(DISABLE_EDGE)return nullopt;
     // Guarded singles assume the protected anchor equals TARGET, as matches do.
-    if ((MATCH_EDGE_GUARD || SINGLE_EDGE_GUARD) && src.fpos < src.blocks.size() &&
-        TARGET / 10 == src.blocks[src.fpos].value / 10) return nullopt;
+    int protectedHead=SINGLE_EDGE_GUARD && SINGLE_PROTECTED_HEAD>=0 ? SINGLE_PROTECTED_HEAD : TARGET/10;
+    if (SINGLE_PROTECTED_VALUE<0 && (MATCH_EDGE_GUARD || SINGLE_EDGE_GUARD) && src.fpos < src.blocks.size() &&
+        protectedHead == src.blocks[src.fpos].value / 10) return nullopt;
     Board out;
     out.fpos = src.fpos;
     vector<TempBlock> t;
@@ -297,6 +317,10 @@ static optional<Board> applyRightTurn(const Board& src) {
     }
 
     if (!anyMerge) return nullopt; // no-op; omit from free closure
+    // An explicit real boundary allows upper pairs to shield F first. Reject
+    // only if the completed EDGE would actually consume that boundary.
+    if(SINGLE_PROTECTED_VALUE>=0 && out.fpos<t.size() && t[out.fpos].curValid &&
+       t[out.fpos].cur==SINGLE_PROTECTED_VALUE/10)return nullopt;
 
     out.blocks.clear();
     out.blocks.reserve(t.size());
@@ -309,6 +333,19 @@ static optional<Board> applyRightTurn(const Board& src) {
     }
 
     return normalize(out); // normal automatic merging after restoration
+}
+
+static optional<Board> normalizeGroupMove(Board b) {
+    auto result=normalize(std::move(b));
+    if(!result || !EXTENSION_EXIT || result->fpos>=result->blocks.size())return result;
+    auto& goal=result->blocks[result->fpos];
+    if(!goal.combo || goal.value!=TARGET)return result;
+    // Only a newly created adjacent group can include the real anchor in the
+    // same physical Group action. An existing group cannot be nested later.
+    if(goal.span>MAX_GOAL_CELLS)return nullopt;
+    goal.span=1;goal.combo=false;
+    if(!isSuccess(*result))return nullopt;
+    return result;
 }
 
 static vector<Board> formCombinationMoves(const Board& b) {
@@ -333,7 +370,7 @@ static vector<Board> formCombinationMoves(const Board& b) {
                              Block{uint16_t(sum), uint8_t(len), true});
             if (belowF) nb.fpos = uint8_t(int(nb.fpos) - (len-1));
 
-            auto z = normalize(nb); // combo may immediately synthesize
+            auto z = normalizeGroupMove(nb); // combo may immediately synthesize
             if (z) ans.push_back(std::move(*z));
         }
     }
@@ -432,6 +469,13 @@ static DrawOutcome doDraw(const Board& src, DrawMode mode, int incoming) {
     auto r1 = normalize(b);
     if (!r1) return {OutcomeKind::OutOfModel,{}};
     b = std::move(*r1);
+    // Equal matching has already consumed the produced group into the real
+    // ordinary anchor. Keep a one-cell virtual goal for the post-draw check.
+    if (SINGLE_PROTECTED_VALUE==TARGET && MATCH_EDGE_GUARD &&
+        SINGLE_TIDY_EXIT && isSuccess(b) && b.fpos<b.blocks.size()) {
+        b.blocks[b.fpos].span=1;
+        b.blocks[b.fpos].combo=false;
+    }
     // A strict single exit describes the completed physical action. UP/DOWN
     // always spawn the next tile after rotating, even if rotation made a goal.
     if (!SINGLE_TIDY_EXIT && isSuccess(b)) return {OutcomeKind::Success,std::move(b)};
@@ -877,6 +921,7 @@ static Board makeInitialBoard() {
     // in the stack; with no active blocks its only gap position is fpos = 0.
     Board b;
     b.fpos = 0;
+    if(INITIAL_ORDINARY) b.blocks.push_back(Block{uint16_t(INITIAL_ORDINARY),1,false});
     auto z = normalize(b);
     if (!z) throw runtime_error("initial board leaves bounded model");
     return *z;
@@ -908,6 +953,11 @@ int main(int argc, char** argv) {
         if(key=="--cells") CAPACITY=positiveInt(val,255,key);
         else if(key=="--target") TARGET=positiveInt(val,65535,key);
         else if(key=="--max-value") MAX_VALUE=positiveInt(val,65535,key);
+        else if(key=="--initial-ordinary") INITIAL_ORDINARY=positiveInt(val,65535,key);
+        else if(key=="--keep-warm-base") {
+            if(val!="0" && val!="1")throw runtime_error("keep-warm-base must be 0 or 1");
+            KEEP_WARM_BASE=val=="1";
+        }
         else if(key=="--max-goal-cells") MAX_GOAL_CELLS=positiveInt(val,5,key);
         else if(key=="--success-no-extra-combos") {
             if(val!="0"&&val!="1")throw runtime_error("success-no-extra-combos must be0 or1");
@@ -920,6 +970,28 @@ int main(int argc, char** argv) {
         else if(key=="--single-edge-guard" || key=="--single-tidy-exit") {
             if(val!="0"&&val!="1")throw runtime_error("single rule must be 0 or 1");
             (key=="--single-edge-guard" ? SINGLE_EDGE_GUARD : SINGLE_TIDY_EXIT)=val=="1";
+        }
+        else if(key=="--single-protected-head") {
+            SINGLE_PROTECTED_HEAD=positiveInt(val,6553,key);
+            SINGLE_EDGE_GUARD=true;
+        }
+        else if(key=="--single-protected-value") {
+            SINGLE_PROTECTED_VALUE=positiveInt(val,65535,key);
+            SINGLE_PROTECTED_HEAD=SINGLE_PROTECTED_VALUE/10;
+            SINGLE_EDGE_GUARD=true;
+        }
+        else if(key=="--match-protected-value") {
+            SINGLE_PROTECTED_VALUE=positiveInt(val,65535,key);
+            SINGLE_PROTECTED_HEAD=SINGLE_PROTECTED_VALUE/10;
+            MATCH_EDGE_GUARD=true;
+        }
+        else if(key=="--disable-edge") {
+            if(val!="0" && val!="1")throw runtime_error("disable-edge must be 0 or 1");
+            DISABLE_EDGE=val=="1";
+        }
+        else if(key=="--extension-exit") {
+            if(val!="0" && val!="1")throw runtime_error("extension-exit must be 0 or 1");
+            EXTENSION_EXIT=val=="1";
         }
         else if(key=="--output") { if(val.empty()) throw runtime_error("empty output path"); tablePath=val; }
         else if(key=="--reuse-table") reuseTablePath=val;
@@ -948,8 +1020,24 @@ int main(int argc, char** argv) {
     }
     if (!MAX_VALUE) MAX_VALUE=TARGET;
     if (MAX_VALUE<TARGET) throw runtime_error("max-value must be at least target");
-    if((SINGLE_EDGE_GUARD||SINGLE_TIDY_EXIT) && (CAPACITY!=6 || MAX_GOAL_CELLS!=1 || !SUCCESS_NO_EXTRA_COMBOS))
-        throw runtime_error("single rules require a clean six-cell single model");
+    if(KEEP_WARM_BASE && (!INITIAL_ORDINARY || INITIAL_ORDINARY*2!=TARGET ||
+        INITIAL_ORDINARY%2 || !(INITIAL_ORDINARY/2%2) ||
+        find(SPAWN.begin(),SPAWN.end(),INITIAL_ORDINARY)!=SPAWN.end() ||
+        INITIAL_ORDINARY==30 || MAX_VALUE>=5*INITIAL_ORDINARY || MAX_VALUE>=2*TARGET))
+        throw runtime_error("warm-base pruning requires a nonspawn minimal nonstandard half that cannot regenerate within the bound");
+    if(INITIAL_ORDINARY && (!checkpointPath.empty() || !reuseTablePath.empty()))
+        throw runtime_error("warm entrances require fresh transitions");
+    if((SINGLE_EDGE_GUARD||SINGLE_TIDY_EXIT) &&
+       ((CAPACITY!=5 && CAPACITY!=6) || (SINGLE_EDGE_GUARD && CAPACITY!=6 && SINGLE_PROTECTED_HEAD<0) ||
+        (MAX_GOAL_CELLS!=1 && (!MATCH_EDGE_GUARD || SINGLE_EDGE_GUARD)) || !SUCCESS_NO_EXTRA_COMBOS))
+        throw runtime_error("single rules require a clean five/six-cell single model; EDGE guard requires six cells");
+    if(SINGLE_PROTECTED_HEAD>=0 && (!checkpointPath.empty() || !reuseTablePath.empty()))
+        throw runtime_error("explicit boundary-head models require fresh transitions without legacy checkpoints");
+    if(DISABLE_EDGE && (!checkpointPath.empty() || !reuseTablePath.empty()))
+        throw runtime_error("no-EDGE models require fresh transitions without legacy checkpoints");
+    if(EXTENSION_EXIT && (CAPACITY!=5 || MAX_GOAL_CELLS<2 || MAX_GOAL_CELLS>4 ||
+        !SUCCESS_NO_EXTRA_COMBOS || !SINGLE_TIDY_EXIT || SINGLE_PROTECTED_VALUE<0))
+        throw runtime_error("extension exits require a clean tidy five-cell model and its actual anchor");
     if(allBases) { BASES.clear(); for(int b=1;b<=MAX_VALUE;b+=2) BASES.push_back(b); }
     cout<<"cells="<<CAPACITY<<" target="<<TARGET<<" max-goal-cells="<<MAX_GOAL_CELLS
         <<" success-side="<<(ABOVE_ONLY?"above":"both")<<" success-no-extra-combos="<<SUCCESS_NO_EXTRA_COMBOS<<" bases=";
@@ -994,7 +1082,14 @@ int main(int argc, char** argv) {
     model << "{\"maxValue\":" << MAX_VALUE << ",\"successNoExtraCombos\":"
           <<(SUCCESS_NO_EXTRA_COMBOS?"true":"false")<<",\"matchEdgeGuard\":"
           <<(MATCH_EDGE_GUARD?"true":"false")<<",\"singleEdgeGuard\":"<<(SINGLE_EDGE_GUARD?"true":"false")
-          <<",\"singleTidyExit\":"<<(SINGLE_TIDY_EXIT?"true":"false")<<"}\n";
+          <<",\"singleTidyExit\":"<<(SINGLE_TIDY_EXIT?"true":"false");
+    if(SINGLE_PROTECTED_HEAD>=0)model<<",\"singleProtectedHead\":"<<SINGLE_PROTECTED_HEAD;
+    if(SINGLE_PROTECTED_VALUE>=0)model<<",\"singleProtectedValue\":"<<SINGLE_PROTECTED_VALUE;
+    if(DISABLE_EDGE)model<<",\"disableEdge\":true";
+    if(EXTENSION_EXIT)model<<",\"extensionExit\":true";
+    if(INITIAL_ORDINARY)model<<",\"initialOrdinary\":"<<INITIAL_ORDINARY;
+    if(KEEP_WARM_BASE)model<<",\"keepWarmBase\":true";
+    model<<"}\n";
     model.close(); if (!model) throw runtime_error("cannot save model bound");
     rs.emit("completed");
     cout << "transition table saved = " << tablePath << '\n';

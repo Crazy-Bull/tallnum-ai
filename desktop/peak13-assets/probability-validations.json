@@ -1,0 +1,183 @@
+{
+  "catalogSha256": "97032f1624d32f06acd22f8a15c94004475c60669f51b77ca0551f71483ba64b",
+  "validations": [
+    {
+      "target": 8192,
+      "cells": 10,
+      "routeSha256": "46df371daf7248806d95042f9e25dd64e179f6c5822154ca05149a51cfa5859d",
+      "attempts": 100,
+      "successes": 75,
+      "successRate": 0.75,
+      "unfinished": 0,
+      "maximumSuccessfulFive64Calls": 0,
+      "maximumSuccessfulHighestFiveCellCalls": 16,
+      "originalEngineVerified": true,
+      "probabilityOnly": true,
+      "forcedDraws": false,
+      "actionBudget": 100000,
+      "sources": {
+        "probability_route_validate.py": "5517924ef347aea94c67efaad91eeb40a8945ca049bc73375e812f146a17d65b",
+        "game.py": "0a80ac8b7f3a58d8710a93a88f99f2c537d351df50efd6d5b93bb04b71c6ed71",
+        "route_runtime.py": "5c7ab9bb8533e905bcc320a424fcae19768c3c9e9c395004cd6605ea72574fc9",
+        "entry_recovery.py": "865a85e57860ec707c285e37a415a8dae4a5f021dcaf7f6436c6abde8d905997",
+        "entry_bridge.py": "771de680328635a102d257d0d76f1518edf65c17ef3235e6c3fde06c19a2eaad",
+        "library.py": "325f51642a72f7b0b675cf4daf658b5207fc3a32a6566764d3d4ac5287697263",
+        "no80_full_game.py": "88b8052a7e0076413ff8f1dcd9ef9e093d0079d3639e16172e5f3c0b429aeae9"
+      },
+      "failureReasons": {
+        "fixed-policy-dead": 7,
+        "stage-exit-contract-mismatch": 12,
+        "five-cell-capacity": 6
+      },
+      "summary": "D:\\tallnumai\\automation\\runs\\generic-plans\\five-peak-dp-v20\\10-8192\\validation-100\\summary.json"
+    },
+    {
+      "target": 10240,
+      "cells": 10,
+      "routeSha256": "d04aee42d40ba1db9b9d7b86e2f4edf343d31bf488fa2185e1e84dfa013eafe3",
+      "attempts": 100,
+      "successes": 51,
+      "successRate": 0.51,
+      "unfinished": 0,
+      "maximumSuccessfulFive64Calls": 14,
+      "maximumSuccessfulHighestFiveCellCalls": 14,
+      "originalEngineVerified": true,
+      "probabilityOnly": true,
+      "forcedDraws": false,
+      "actionBudget": 100000,
+      "sources": {
+        "probability_route_validate.py": "5517924ef347aea94c67efaad91eeb40a8945ca049bc73375e812f146a17d65b",
+        "game.py": "0a80ac8b7f3a58d8710a93a88f99f2c537d351df50efd6d5b93bb04b71c6ed71",
+        "route_runtime.py": "5c7ab9bb8533e905bcc320a424fcae19768c3c9e9c395004cd6605ea72574fc9",
+        "entry_recovery.py": "865a85e57860ec707c285e37a415a8dae4a5f021dcaf7f6436c6abde8d905997",
+        "entry_bridge.py": "771de680328635a102d257d0d76f1518edf65c17ef3235e6c3fde06c19a2eaad",
+        "library.py": "325f51642a72f7b0b675cf4daf658b5207fc3a32a6566764d3d4ac5287697263",
+        "no80_full_game.py": "88b8052a7e0076413ff8f1dcd9ef9e093d0079d3639e16172e5f3c0b429aeae9"
+      },
+      "failureReasons": {
+        "five-cell-capacity": 29,
+        "fixed-policy-dead": 20
+      },
+      "summary": "D:\\tallnumai\\automation\\runs\\generic-plans\\five-peak-dp-v20\\10-10240\\validation-100\\summary.json"
+    },
+    {
+      "target": 12288,
+      "cells": 10,
+      "routeSha256": "82b2368ae0410834da0dc8a0432adfb7a11555fbd99b7eb9162a36cfeb74fd18",
+      "attempts": 100,
+      "successes": 40,
+      "successRate": 0.4,
+      "unfinished": 42,
+      "maximumSuccessfulFive64Calls": 73,
+      "maximumSuccessfulHighestFiveCellCalls": 10,
+      "originalEngineVerified": true,
+      "probabilityOnly": true,
+      "forcedDraws": false,
+      "actionBudget": 100000,
+      "sources": {
+        "probability_route_validate.py": "5517924ef347aea94c67efaad91eeb40a8945ca049bc73375e812f146a17d65b",
+        "game.py": "0a80ac8b7f3a58d8710a93a88f99f2c537d351df50efd6d5b93bb04b71c6ed71",
+        "route_runtime.py": "5c7ab9bb8533e905bcc320a424fcae19768c3c9e9c395004cd6605ea72574fc9",
+        "entry_recovery.py": "865a85e57860ec707c285e37a415a8dae4a5f021dcaf7f6436c6abde8d905997",
+        "entry_bridge.py": "771de680328635a102d257d0d76f1518edf65c17ef3235e6c3fde06c19a2eaad",
+        "library.py": "325f51642a72f7b0b675cf4daf658b5207fc3a32a6566764d3d4ac5287697263",
+        "no80_full_game.py": "88b8052a7e0076413ff8f1dcd9ef9e093d0079d3639e16172e5f3c0b429aeae9"
+      },
+      "failureReasons": {
+        "action-budget": 42,
+        "fixed-policy-dead": 14,
+        "five-cell-capacity": 4
+      },
+      "summary": "D:\\tallnumai\\automation\\runs\\generic-plans\\five-peak-dp-v20\\10-12288\\validation-100\\summary.json"
+    },
+    {
+      "target": 8192,
+      "cells": 10,
+      "routeSha256": "04b828f406b640a26ad9f1772ab1fc1c5a07541dee7e3c592ead89a08ecd74a7",
+      "attempts": 100,
+      "successes": 94,
+      "successRate": 0.94,
+      "unfinished": 0,
+      "maximumSuccessfulFive64Calls": 0,
+      "maximumSuccessfulHighestFiveCellCalls": 18,
+      "originalEngineVerified": true,
+      "probabilityOnly": true,
+      "forcedDraws": false,
+      "actionBudget": 100000,
+      "sources": {
+        "probability_route_validate.py": "ecd996c42af8a84d89232301d9a7facf1ff9d7fd3f30c2d914692815cf75f5dd",
+        "game.py": "0a80ac8b7f3a58d8710a93a88f99f2c537d351df50efd6d5b93bb04b71c6ed71",
+        "route_runtime.py": "1014ec0e03447e4e56791aa90db1ad0af8ae9a90265cd7a5df9a5e07bbfac426",
+        "entry_recovery.py": "865a85e57860ec707c285e37a415a8dae4a5f021dcaf7f6436c6abde8d905997",
+        "entry_bridge.py": "771de680328635a102d257d0d76f1518edf65c17ef3235e6c3fde06c19a2eaad",
+        "library.py": "325f51642a72f7b0b675cf4daf658b5207fc3a32a6566764d3d4ac5287697263",
+        "no80_full_game.py": "88b8052a7e0076413ff8f1dcd9ef9e093d0079d3639e16172e5f3c0b429aeae9",
+        "probability_route_execution.py": "1d0ae3162eed75b630d0b8cddb60a91fd7cb7fc31ccb3ce2ec67eda7b5a04517"
+      },
+      "failureReasons": {
+        "fixed-policy-dead": 3,
+        "stage-exit-contract-mismatch": 3
+      },
+      "summary": "D:\\tallnumai\\automation\\runs\\generic-plans\\execution-fix-v6\\10-8192\\validation-100\\summary.json"
+    },
+    {
+      "target": 12288,
+      "cells": 10,
+      "routeSha256": "34baa1153ffa5558e9b223a067c5e5cbf97e492c8add199746225c565f43342f",
+      "attempts": 100,
+      "successes": 91,
+      "successRate": 0.91,
+      "unfinished": 0,
+      "maximumSuccessfulFive64Calls": 12,
+      "maximumSuccessfulHighestFiveCellCalls": 10,
+      "originalEngineVerified": true,
+      "probabilityOnly": true,
+      "forcedDraws": false,
+      "actionBudget": 100000,
+      "sources": {
+        "probability_route_validate.py": "ecd996c42af8a84d89232301d9a7facf1ff9d7fd3f30c2d914692815cf75f5dd",
+        "game.py": "0a80ac8b7f3a58d8710a93a88f99f2c537d351df50efd6d5b93bb04b71c6ed71",
+        "route_runtime.py": "1014ec0e03447e4e56791aa90db1ad0af8ae9a90265cd7a5df9a5e07bbfac426",
+        "entry_recovery.py": "865a85e57860ec707c285e37a415a8dae4a5f021dcaf7f6436c6abde8d905997",
+        "entry_bridge.py": "771de680328635a102d257d0d76f1518edf65c17ef3235e6c3fde06c19a2eaad",
+        "library.py": "325f51642a72f7b0b675cf4daf658b5207fc3a32a6566764d3d4ac5287697263",
+        "no80_full_game.py": "88b8052a7e0076413ff8f1dcd9ef9e093d0079d3639e16172e5f3c0b429aeae9",
+        "probability_route_execution.py": "47ce6c8fda2f61fc06ffbce4095fd0a6e24eb643d38bcb88ccab08e70aba6fd1"
+      },
+      "failureReasons": {
+        "fixed-policy-dead": 9
+      },
+      "summary": "D:\\tallnumai\\automation\\runs\\generic-plans\\execution-fix-v7\\10-12288\\validation-100\\summary.json"
+    },
+    {
+      "target": 10240,
+      "cells": 10,
+      "routeSha256": "867c3bd4a4d89f2af62c19482b560d56c4d30f47004b7d276e3d3fd6230a03e0",
+      "attempts": 100,
+      "successes": 87,
+      "successRate": 0.87,
+      "unfinished": 0,
+      "maximumSuccessfulFive64Calls": 14,
+      "maximumSuccessfulHighestFiveCellCalls": 14,
+      "originalEngineVerified": true,
+      "probabilityOnly": true,
+      "forcedDraws": false,
+      "actionBudget": 100000,
+      "sources": {
+        "probability_route_validate.py": "ecd996c42af8a84d89232301d9a7facf1ff9d7fd3f30c2d914692815cf75f5dd",
+        "game.py": "0a80ac8b7f3a58d8710a93a88f99f2c537d351df50efd6d5b93bb04b71c6ed71",
+        "route_runtime.py": "1014ec0e03447e4e56791aa90db1ad0af8ae9a90265cd7a5df9a5e07bbfac426",
+        "entry_recovery.py": "865a85e57860ec707c285e37a415a8dae4a5f021dcaf7f6436c6abde8d905997",
+        "entry_bridge.py": "771de680328635a102d257d0d76f1518edf65c17ef3235e6c3fde06c19a2eaad",
+        "library.py": "325f51642a72f7b0b675cf4daf658b5207fc3a32a6566764d3d4ac5287697263",
+        "no80_full_game.py": "88b8052a7e0076413ff8f1dcd9ef9e093d0079d3639e16172e5f3c0b429aeae9",
+        "probability_route_execution.py": "47ce6c8fda2f61fc06ffbce4095fd0a6e24eb643d38bcb88ccab08e70aba6fd1"
+      },
+      "failureReasons": {
+        "fixed-policy-dead": 8,
+        "6-cell-capacity": 5
+      },
+      "summary": "D:\\tallnumai\\automation\\runs\\generic-plans\\execution-fix-v7\\10-10240\\validation-100\\summary.json"
+    }
+  ]
+}

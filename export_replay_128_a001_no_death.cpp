@@ -115,7 +115,7 @@ static vector<pair<Board,Op>> freeMoves(const Board& b) {
                 nb.blocks.erase(nb.blocks.begin()+l,nb.blocks.begin()+r+1);
                 nb.blocks.insert(nb.blocks.begin()+l,Block{uint16_t(sum),uint8_t(r-l+1),true});
                 if (r<b.fpos) nb.fpos=uint8_t(int(b.fpos)-(r-l));
-                if (auto z=game::normalize(nb)) result.push_back({*z,Op{0,l,r}});
+                if (auto z=game::normalizeGroupMove(nb)) result.push_back({*z,Op{0,l,r}});
             }
         }
     }

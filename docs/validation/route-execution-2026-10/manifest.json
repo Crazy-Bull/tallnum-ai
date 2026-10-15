@@ -1,0 +1,50 @@
+{
+  "scope": "Routes and compact validation evidence; probability tables and full replays are not distributed.",
+  "files": [
+    {
+      "file": "docs/validation/route-execution-2026-10/8192/route.json",
+      "sha256": "04b828f406b640a26ad9f1772ab1fc1c5a07541dee7e3c592ead89a08ecd74a7",
+      "source": "automation/runs/generic-plans/execution-fix-v6/10-8192/route.json"
+    },
+    {
+      "file": "docs/validation/route-execution-2026-10/8192/planning-report.json",
+      "sha256": "025aa934ab67016f8e34130113fec1321dae3451c0079d93cd34873412dee5c3",
+      "source": "automation/runs/generic-plans/execution-fix-v6/10-8192/planning-report.json"
+    },
+    {
+      "file": "docs/validation/route-execution-2026-10/8192/repair-results.json",
+      "sha256": "a687f95487b5fc11cd65e7723658ac180fc6517b797e50ae993d0dc31d799937",
+      "source": "automation/runs/generic-plans/execution-fix-v6/10-8192/repair-results.json"
+    },
+    {
+      "file": "docs/validation/route-execution-2026-10/10240/route.json",
+      "sha256": "867c3bd4a4d89f2af62c19482b560d56c4d30f47004b7d276e3d3fd6230a03e0",
+      "source": "automation/runs/generic-plans/execution-fix-v7/10-10240/route.json"
+    },
+    {
+      "file": "docs/validation/route-execution-2026-10/10240/planning-report.json",
+      "sha256": "5a676b6089935f08c00cd514ad161a0b02a70d5ea831e335372fe2898dc845d7",
+      "source": "automation/runs/generic-plans/execution-fix-v7/10-10240/planning-report.json"
+    },
+    {
+      "file": "docs/validation/route-execution-2026-10/10240/repair-results.json",
+      "sha256": "3605f248261b2294059f64b385393599845ce3cfe9182cc4a68eafedbfe2101f",
+      "source": "automation/runs/generic-plans/execution-fix-v7/10-10240/repair-results.json"
+    },
+    {
+      "file": "docs/validation/route-execution-2026-10/12288/route.json",
+      "sha256": "34baa1153ffa5558e9b223a067c5e5cbf97e492c8add199746225c565f43342f",
+      "source": "automation/runs/generic-plans/execution-fix-v7/10-12288/route.json"
+    },
+    {
+      "file": "docs/validation/route-execution-2026-10/12288/planning-report.json",
+      "sha256": "30b2d3f13860e820523fb6d4dc2517c0c5123a21e809e2803b91232772d02849",
+      "source": "automation/runs/generic-plans/execution-fix-v7/10-12288/planning-report.json"
+    },
+    {
+      "file": "docs/validation/route-execution-2026-10/12288/repair-results.json",
+      "sha256": "ff475a1ed1169a4e30b22b5b1ac3b261ea09d315e800ad33536c096735bdea4a",
+      "source": "automation/runs/generic-plans/execution-fix-v7/10-12288/repair-results.json"
+    }
+  ]
+}

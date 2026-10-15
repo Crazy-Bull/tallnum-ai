@@ -258,6 +258,7 @@ struct PolicyService {
     }
 };
 
+#ifndef TALLNUM_FIXED_CACHE_LIBRARY
 int main(int argc,char** argv){
     try{
         if(argc==4 && string(argv[1])=="query"){
@@ -276,3 +277,4 @@ int main(int argc,char** argv){
         }else throw runtime_error("unknown command");
     }catch(const exception& e){cerr<<e.what()<<endl;return 1;}
 }
+#endif

@@ -21,6 +21,17 @@ class RouteExecutor:
     def __init__(self, route, catalog, worker_factory=PolicyWorker):
         if route.get('version') != 2 or route.get('kind') != 'stages':
             raise ValueError('Expected v2 stage route')
+        minimum=route.get('minimumTemplateTarget',24 if str(route.get('id','')).startswith('no80-') else None)
+        if minimum is not None:
+            policies={p['id']:p for p in catalog['policies']}
+            used={s['policy'] for s in route['steps'] if s['kind']=='leaf'}
+            used.update(i for ids in route.get('bufferRescuePolicies',{}).values() for i in ids)
+            if any(policies[i]['target']<minimum for i in used):
+                raise ValueError('Policy target below route minimum')
+            if any(s['kind']=='leaf' and (s['target']<minimum or s['target']!=policies[s['policy']]['target']) for s in route['steps']):
+                raise ValueError('Leaf target below route minimum or differs from policy')
+            if any(s['kind']=='leaf' and s.get('warmStartOrdinary')!=policies[s['policy']].get('warmStartOrdinary') for s in route['steps']):
+                raise ValueError('Warm policy/entry contract differs')
         self.route, self.catalog, self.worker_factory = route, catalog, worker_factory
         self.inner = None
         self.workers = OrderedDict()
@@ -36,8 +47,11 @@ class RouteExecutor:
         self.entry_bridge_events = []
         self.buffer_rescue = None
         self.buffer_rescue_events = []
+        self.handoff_events = []
         self.search_events = []
         self.single_exit_events = []
+        self.template_calls = []
+        self.connection_events = []
         self.buffer_rescue_attempts = set()
         self.initial_bound=not bool(self.route.get('initialPrefix'))
 
@@ -102,6 +116,8 @@ class RouteExecutor:
                     raise RouteFailure(self.inner.failure_reason)
                 if action is not None:
                     return action
+                deferred=self._defer_completed_goal(obs,step)
+                if deferred is not None:return deferred
                 self.fixed_ids = set(self.inner.fixed_ids)
                 self._contract(obs, step['after'])
                 if step.get('policyCells')==6 and step.get('exit')=='single':
@@ -119,6 +135,17 @@ class RouteExecutor:
                 continue
             self._contract(obs, step['before'])
             indices = self._indices(obs)
+            if step['kind']=='release':
+                released={indices[i] for i in step['releaseIndices']}
+                if not released or released!=set(indices[-len(released):]):
+                    raise RouteFailure('release-must-be-protected-suffix')
+                warm=step.get('warmStartOrdinary')
+                if warm is not None and (len(released)!=1 or any(obs['tower'][i]['kind']!='tile' or obs['tower'][i]['value']!=warm for i in released)):
+                    raise RouteFailure('warm-start-block-mismatch')
+                self.fixed_ids.difference_update(obs['tower'][i]['id'] for i in released)
+                self._contract(obs,step['after'])
+                self.stage+=1
+                continue
             if step['kind'] == 'leaf':
                 # A same-head residual below a match anchor is a known risky
                 # entrance: a later GROUP can turn it into an unhandled block.
@@ -130,6 +157,10 @@ class RouteExecutor:
                         and self._start_buffer_rescue(obs, 'risky-match-entry')):
                     return self._next_buffer_rescue(obs)
                 capacity=step.get('policyCells',5)
+                if step.get('warmStartOrdinary') and not any(
+                        t['id'] not in self.fixed_ids and t['kind']=='tile'
+                        and t['value'] in (step['warmStartOrdinary'],step['target']) for t in obs['tower']):
+                    raise RouteFailure('required-warm-block-missing')
                 if self.route['cells']-sum(obs['tower'][i]['physicalCount'] for i in indices) < capacity:
                     raise RouteFailure('insufficient-five-cell-workspace' if capacity==5 else 'insufficient-policy-workspace')
                 entry_action=self.prepare_leaf_entry(obs,step)
@@ -137,10 +168,14 @@ class RouteExecutor:
                 leaf = {**step, 'kind': 'leaf'}
                 wrapper = {'target': -1, 'towerLimit': self.route['cells'], 'kind': 'stage', 'children': [leaf]}
                 self.inner = StageExecutor(wrapper, self.catalog, self.worker_factory)
+                self.template_calls.append({'stage':self.stage,'policy':step['policy'],
+                    'cells':capacity,'target':step['target'],'exit':step['exit'],'rescue':False})
                 self.inner.workers = self.workers
                 self.inner.fixed_ids = self.fixed_ids.copy()
                 self.inner.entry_bridge_events = self.entry_bridge_events
                 self.inner.entry_route_stage = self.stage
+                if self.route.get('checkNextLeafEntry'):
+                    self.inner.handoff_validator=self._handoff_viable
                 continue
             action = {'kind': step['kind']}
             if step['kind'] == 'group':
@@ -156,12 +191,84 @@ class RouteExecutor:
             previous = self.fixed_ids
             self.fixed_ids = ids
             try:
-                self._contract(predicted, step['after'])
+                try:self._contract(predicted, step['after'])
+                except RouteFailure:
+                    self.fixed_ids = previous
+                    aligned=self._align_connection(obs,step,action)
+                    if aligned is not None:return aligned
+                    raise
             finally:
                 self.fixed_ids = previous
             self.pending_ids = ids
             return action
         raise RouteFailure('route-finished-without-target')
+
+    def _align_connection(self,obs,step,action):
+        """Rotate a residual only when the full next connection is exact."""
+        if step['kind']!='edge' or len(obs['queue'])!=2 or any(v is None for v in obs['queue']):return None
+        original=[t['id'] for t in obs['tower'] if t['id'] in self.fixed_ids]
+        for kind in ('down','up'):
+            try:
+                rotated=game.predict(obs,{'kind':kind})
+                if rotated['gameOver']:continue
+                self._contract(rotated,step['before'])
+                if [t['id'] for t in rotated['tower'] if t['id'] in self.fixed_ids]!=original:continue
+                connected=game.predict(rotated,action)
+                if connected['gameOver']:continue
+                ids={t['id'] for t in connected['tower']
+                     if self.fixed_ids.intersection(t.get('_sources',[t['id']]))}
+                previous=self.fixed_ids;self.fixed_ids=ids
+                try:self._contract(connected,step['after'])
+                finally:self.fixed_ids=previous
+            except (ValueError,RouteFailure):continue
+            self.connection_events.append({'stage':self.stage,'action':{'kind':kind},
+                'reason':'residual-would-change-edge-exit','board':game.signature(obs),'queue':obs['queue'][:]})
+            return {'kind':kind}
+        return None
+
+    def _defer_completed_goal(self,obs,step):
+        if (not self.route.get('checkNextLeafEntry') or step.get('exit')!='single'
+                or step.get('singleConnectionAfter') or not obs['queue']
+                or obs['queue'][0]!=step['target']):return None
+        proposed=self.inner.fixed_ids
+        extra=proposed-self.fixed_ids
+        if len(extra)!=1:return None
+        goal=next((t for t in obs['tower'] if t['id'] in extra),None)
+        if goal is None or goal['kind']!='tile' or goal['value']!=step['target']:return None
+        protected=[i for i,t in enumerate(obs['tower']) if t['id'] in proposed]
+        if self._handoff_viable(obs,protected):return None
+        after=game.predict(obs,{'kind':'drop'})
+        surviving={t['id'] for t in after['tower']}
+        if after['gameOver'] or not self.fixed_ids<=surviving or goal['id'] in surviving:return None
+        item=self.inner.policies[step['policy']]
+        active=[t for t in after['tower'] if t['id'] not in self.fixed_ids]
+        if sum(t['physicalCount'] for t in active)>=item.get('cells',5):return None
+        if any(t['value']>item['maxValue'] for t in active):return None
+        try:self._contract(after,step['before'])
+        except RouteFailure:return None
+        self.handoff_events.append({'stage':self.stage,'reason':'consume-preview-before-rebuilding-goal',
+                                    'board':game.signature(obs),'queue':obs['queue'][:],'action':{'kind':'drop'}})
+        self.inner=None
+        return {'kind':'drop'}
+
+    def _handoff_viable(self,obs,protected):
+        """Reject a locally finished macro only for a known dead next entry."""
+        if self.stage+1>=len(self.route['steps']):return True
+        following=self.route['steps'][self.stage+1]
+        if following['kind']!='leaf' or len(obs['queue'])!=2 or any(v is None for v in obs['queue']):return True
+        item=self.inner.policies[following['policy']]
+        if not item.get('pendingValue') or not item.get('realBoardAlternatives'):return True
+        actual=[[obs['tower'][i]['value'],obs['tower'][i]['physicalCount'],obs['tower'][i]['kind']=='group'] for i in protected]
+        if actual!=following['before']:return True
+        active=[t for i,t in enumerate(obs['tower']) if i not in protected]
+        if sum(t['physicalCount'] for t in active)>=item.get('cells',5):return True
+        if any(t['value']>item['maxValue'] for t in active):return True
+        reply=self.inner._worker(following).query(active,protected[0],obs['queue'])
+        if reply.get('status')!='dead':return True
+        self.handoff_events.append({'stage':self.stage,'nextStage':self.stage+1,
+                                    'policy':following['policy'],'queue':obs['queue'][:],
+                                    'board':game.signature(obs),'reason':'known-dead-next-entry'})
+        return False
 
     def _start_buffer_rescue(self, obs, reason):
         """Try a smaller same-head buffer, then EDGE away the match anchor."""
@@ -171,8 +278,11 @@ class RouteExecutor:
         if self.stage in self.buffer_rescue_attempts or self.stage < 1:
             return False
         step = self.route['steps'][self.stage]
-        if step.get('kind') != 'leaf' or step.get('exit') != 'match':
+        single_retry=((step.get('exit')=='single' and self.route.get('singleBoundaryBufferRescue',False))
+                      or (step.get('exit')=='extend' and self.route.get('extendedBoundaryBufferRescue',False)))
+        if step.get('kind') != 'leaf' or (step.get('exit') != 'match' and not single_retry):
             return False
+        if not step.get('before'):return False
         # A match can consume an anchor made by another match (40→80 or
         # 32→64). Removing it must rewind to the leaf that started that chain.
         prefix = step['before'][:-1]
@@ -180,19 +290,40 @@ class RouteExecutor:
                        if self.route['steps'][i].get('before') == prefix), None)
         if rewind is None:
             return False
-        target = step['target']
+        target = step['before'][-1][0] if single_retry else step['target']
         choices = self.route.get('bufferRescuePolicies', {}).get(str(target), [])
         indices = self._indices(obs)
-        if not choices or not indices:
+        if not indices:
             return False
         anchor = obs['tower'][indices[-1]]
         if anchor['kind'] != 'tile' or anchor['value'] != target:
             return False
+        if self.route.get('realBoundaryRewind',False):
+            # A real EDGE may already remove the last anchor without needing
+            # a buffer producer. Check the entire surviving prefix and the
+            # rewind contract; this is a free game operation, not a template.
+            keep=self.fixed_ids-{anchor['id']}
+            try:
+                reduced=game.predict(obs,{'kind':'edge'})
+                survivors={t['id'] for t in reduced['tower']}
+                if not reduced['gameOver'] and keep<=survivors and anchor['id'] not in survivors:
+                    self.fixed_ids=keep
+                    try:self._contract(reduced,prefix)
+                    finally:self.fixed_ids=keep|{anchor['id']}
+                    self.buffer_rescue_attempts.add(self.stage)
+                    self.buffer_rescue={'phase':'edge','stage':self.stage,'rewind':rewind,
+                        'policy':'real-boundary-edge','reason':reason,'anchor':anchor['id'],
+                        'keep':keep,'actionsTaken':0,'startBoard':game.signature(obs),
+                        'startQueue':obs['queue'][:]}
+                    self.inner=None
+                    return True
+            except (ValueError,RouteFailure):
+                pass
         for policy_id in choices:
             item = self.catalog.get('policies', [])
             item = next((p for p in item if p['id'] == policy_id), None)
             if (item is None or item.get('exit') != 'buffer'
-                    or item.get('cells') != step.get('policyCells', 5)
+                    or item.get('cells') != (5 if single_retry else step.get('policyCells', 5))
                     or item.get('maxValue', 0) < 48
                     or item.get('maxGoalCells', 5) > 4
                     or item['target'] == target
@@ -257,6 +388,8 @@ class RouteExecutor:
                     if reply.get('status') != 'ok':
                         continue
             self.buffer_rescue_attempts.add(self.stage)
+            self.template_calls.append({'stage':self.stage,'policy':policy_id,
+                'cells':item.get('cells',5),'target':item['target'],'exit':'buffer','rescue':True})
             self.buffer_rescue = {'executor': rescue, 'phase': 'buffer',
                                   'stage': self.stage, 'rewind': rewind,
                                   'policy': policy_id,

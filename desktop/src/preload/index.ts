@@ -2,6 +2,13 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { DesktopApi } from '../shared'
 
 const api: DesktopApi = {
+  peak13Status: () => ipcRenderer.invoke('peak13:status'),
+  peak13Templates: () => ipcRenderer.invoke('peak13:templates'),
+  peak13Start: directory => ipcRenderer.invoke('peak13:start', directory),
+  peak13Stop: () => ipcRenderer.invoke('peak13:stop'),
+  integerPlannerStatus: () => ipcRenderer.invoke('integer-planner:status'),
+  integerPlannerStart: request => ipcRenderer.invoke('integer-planner:start', request),
+  integerPlannerStop: () => ipcRenderer.invoke('integer-planner:stop'),
   automationStatus: () => ipcRenderer.invoke('automation:status'),
   automationStart: request => ipcRenderer.invoke('automation:start', request),
   automationControl: mode => ipcRenderer.invoke('automation:control', mode),
@@ -10,7 +17,6 @@ const api: DesktopApi = {
   create: spec => ipcRenderer.invoke('jobs:create', spec),
   pause: id => ipcRenderer.invoke('jobs:pause', id),
   resume: id => ipcRenderer.invoke('jobs:resume', id),
-  updateBudget: (id, budget) => ipcRenderer.invoke('jobs:updateBudget', id, budget),
   cancel: id => ipcRenderer.invoke('jobs:cancel', id),
   chooseDirectory: () => ipcRenderer.invoke('files:chooseDirectory'),
   openDirectory: id => ipcRenderer.invoke('files:openDirectory', id),

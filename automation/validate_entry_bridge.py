@@ -39,7 +39,7 @@ def row(state, action):
             'gameOver': state['gameOver']}
 
 
-def play(old_replay, old_record, executor, regression=False):
+def play(old_replay, old_record, executor, regression=False, *, checkpoint=None, start_stage=None, max_actions=25000):
     seed = old_replay['seed']
     state = game.new_game(seed, 10)
     if state != old_replay['initial']:
@@ -49,7 +49,12 @@ def play(old_replay, old_record, executor, regression=False):
         # Preserve the verified opening failures: this change concerns only
         # continuation entry handling. No synthetic restart or queue edits.
         return {'record': old_record, 'replay': old_replay}
-    if regression:
+    if checkpoint is not None:
+        if str(checkpoint) not in old_record['milestones']:
+            return {'record':old_record,'replay':old_replay}
+        def reached():
+            return any(t['kind']=='tile' and t['value']==checkpoint for t in state['tower'])
+    elif regression:
         wanted = [4, 6, 4, 5120, 960, 640, 256, 32]
         def reached():
             return ([t['value'] for t in state['tower']] == wanted
@@ -71,7 +76,14 @@ def play(old_replay, old_record, executor, regression=False):
         trace.append(fresh)
     if not reached():
         raise ValueError('Saved replay does not contain the required entry')
-    if regression:
+    if checkpoint is not None:
+        executor.reset()
+        executor.stage=start_stage
+        executor.initial_bound=True
+        executor.fixed_ids={next(t['id'] for t in state['tower'] if t['kind']=='tile' and t['value']==checkpoint)}
+        executor._contract(game.observation(state),executor.route['steps'][start_stage]['before'])
+        milestones={k:v for k,v in old_record['milestones'].items() if v<=state['drops']}
+    elif regression:
         executor.reset()
         executor.stage = 213
         executor.initial_bound = True
@@ -85,7 +97,7 @@ def play(old_replay, old_record, executor, regression=False):
     reason = 'action-budget'
     outcome = 'limit'
     try:
-        for count in range(25000):
+        for count in range(max_actions):
             ordinary = {t['value'] for t in state['tower'] if t['kind'] == 'tile'}
             for target in (80, 120, 160, 320, 640, 1280, 2560, 5120, 10240):
                 if target in ordinary:

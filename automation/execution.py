@@ -12,6 +12,9 @@ def create_executor(route,catalog,worker_factory=None):
         if route.get('browserOpeningContract'):
             from .opening128_40 import ContractExecutor
             cls=ContractExecutor
+        if route.get('entryRecovery'):
+            from .entry_recovery import RecoveryExecutor
+            cls=RecoveryExecutor
     return cls(route,catalog,**({'worker_factory':worker_factory} if worker_factory else {}))
 
 

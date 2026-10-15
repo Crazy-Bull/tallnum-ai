@@ -312,8 +312,7 @@ def main():
         prepare_missing(args.directory,requirements,args.rounds)
         certify_baselines(args.directory)
         catalogs = [*(args.catalog or []),catalog_file]
-        from .library import SHARED_CLEAN_LIBRARY
-        shared=SHARED_CLEAN_LIBRARY/'catalog.json'
+        shared=Path('F:/TallnumData/tallnumai-cleanexit/catalog.json')
         if shared.exists() and shared.resolve() not in [Path(x).resolve() for x in catalogs]:
             catalogs.append(shared)
         result = build_weights(catalogs,alpha=0,maximum=args.max_target,clean_exit=True,
@@ -329,8 +328,7 @@ def main():
         if not args.catalog:
             parser.error('--catalog is required')
         catalogs=list(args.catalog)
-        from .library import SHARED_CLEAN_LIBRARY
-        shared=SHARED_CLEAN_LIBRARY/'catalog.json'
+        shared=Path('F:/TallnumData/tallnumai-cleanexit/catalog.json')
         if shared.exists() and shared.resolve() not in [Path(x).resolve() for x in catalogs]:catalogs.append(shared)
         result = build_weights(catalogs,alpha=args.alpha,maximum=args.max_target,clean_exit=True,
                                recalculate=args.recalculate,measurement_directory=args.directory,

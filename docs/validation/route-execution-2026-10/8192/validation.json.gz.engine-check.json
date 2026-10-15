@@ -1,0 +1,7 @@
+{
+  "games": 100,
+  "actions": 794191,
+  "seededRngParity": true,
+  "forcedDraws": false,
+  "diagnosticActionLogDiscarded": true
+}

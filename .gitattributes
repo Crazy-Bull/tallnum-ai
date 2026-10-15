@@ -15,3 +15,17 @@
 *.cmd text eol=crlf
 *.png binary
 *.ico binary
+
+# Validation records fingerprint exact runtime bytes; retain their line endings.
+automation/probability_route_validate.py -text whitespace=cr-at-eol
+automation/game.py -text whitespace=cr-at-eol
+automation/route_runtime.py -text whitespace=cr-at-eol
+automation/entry_recovery.py -text whitespace=cr-at-eol
+automation/entry_bridge.py -text whitespace=cr-at-eol
+automation/library.py -text whitespace=cr-at-eol
+automation/no80_full_game.py -text whitespace=cr-at-eol
+automation/probability_route_execution.py -text whitespace=cr-at-eol
+desktop/peak13-assets/*.json -text whitespace=cr-at-eol
+docs/validation/route-execution-2026-10/*/route.json -text whitespace=cr-at-eol
+docs/validation/route-execution-2026-10/*/sources/*.py -text whitespace=cr-at-eol
+automation/tests/fixtures/**/*.json -text whitespace=cr-at-eol

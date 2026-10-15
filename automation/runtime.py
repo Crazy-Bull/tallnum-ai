@@ -66,6 +66,8 @@ class Executor:
         self.entry_bridge_events = []
         self.entry_bridge_probe = False
         self.search_events = []
+        self.real_board_excluded = {}
+        self.real_board_query = None
 
     def close(self):
         for worker in self.workers.values():
@@ -78,7 +80,8 @@ class Executor:
         if key not in self.workers:
             # Building any new query cache can load the full transition table
             # and multiple work arrays, even for a five-cell template.
-            if (not item.get('pendingValue') and item.get('policy')
+            if (not getattr(self.worker_factory,'transient_query_cache',False)
+                    and not item.get('pendingValue') and item.get('policy')
                     and not os.path.exists(os.path.splitext(item['policy'])[0]+'.query.bin')):
                 for worker in self.workers.values():worker.close()
                 self.workers.clear()
@@ -180,10 +183,28 @@ class Executor:
             return {'kind':'drop'}
         try:
             return self._next_action(obs)
-        except RouteFailure as error:
+        except (RouteFailure,IncompatibleState) as error:
+            invalid_terminal=str(error) in ('Missing ordinary exit','Ordinary goal is not adjacent to protected segment',
+                                           'No ordinary extension exit','Expected neighboring equal block to merge',
+                                           'Terminal protected segment is not contiguous','Extension did not normalize')
+            alternatives_enabled=(self.real_board_query is not None or
+                any(p.get('realBoardAlternatives') for p in getattr(self,'policies',{}).values()))
+            if isinstance(error,IncompatibleState) and (not invalid_terminal or not alternatives_enabled):
+                raise
+            if ((str(error) in ('fixed-policy-action-would-merge-protected-segment',
+                              'fixed-policy-exit-rejected','fixed-policy-next-entry-rejected',
+                              'single-exit-residual-exceeds-limit','single-exit-has-extra-group') or invalid_terminal)
+                    and self.real_board_query is not None):
+                key,post=self.real_board_query
+                excluded=self.real_board_excluded.setdefault(key,[])
+                if len(excluded)<32 and post not in excluded:
+                    excluded.append(post)
+                    self.queue.clear();self.macro_board=None;self.finish_after_queue=False
+                    self.free_seen.discard((self.stage,tuple(game.signature(obs)),tuple(obs['queue'])))
+                    return self.next_action(obs)
             if obs['gameOver']:
                 raise
-            self.failure_reason = str(error)
+            self.failure_reason = 'fixed-policy-exit-rejected' if invalid_terminal else str(error)
             self.queue.clear()
             self.finish_after_queue = False
             self.macro_board = None
@@ -239,7 +260,27 @@ class Executor:
         capacity=self.policies[leaf['policy']].get('cells',5)
         if sum(t['physicalCount'] for t in active) >= capacity:
             raise RouteFailure('five-cell-capacity' if capacity==5 else f'{capacity}-cell-capacity')
-        reply = self._worker(leaf).query(active, fpos, obs['queue'])
+        item=self.policies[leaf['policy']]
+        minimum=item.get('equivalentProtectedMinimum')
+        maximum=item.get('maxValue')
+        expected=item.get('singleProtectedValue')
+        equivalent=(item.get('exit')=='single' and fixed and isinstance(minimum,int)
+                    and isinstance(maximum,int) and isinstance(expected,int)
+                    and minimum>=10*(maximum//10+1) and expected>=minimum
+                    and obs['tower'][fixed[-1]]['value']>=minimum)
+        if not equivalent and item.get('singleProtectedHead') is not None:
+            if not fixed or obs['tower'][fixed[-1]]['value']//10!=item['singleProtectedHead']:
+                raise IncompatibleState('Explicit single boundary head differs from actual protected anchor')
+        if not equivalent and item.get('singleProtectedValue') is not None:
+            if not fixed or obs['tower'][fixed[-1]]['value']!=item['singleProtectedValue']:
+                raise IncompatibleState('Explicit single boundary value differs from actual protected anchor')
+        self.real_board_query=None
+        if item.get('realBoardAlternatives'):
+            key=(leaf['policy'],tuple(game.signature(obs)),tuple(obs['queue']))
+            reply=self._worker(leaf).query(active,fpos,obs['queue'],self.real_board_excluded.get(key,()))
+            if reply.get('post') is not None:self.real_board_query=(key,reply['post'])
+        else:
+            reply = self._worker(leaf).query(active, fpos, obs['queue'])
         if self.policies[leaf['policy']].get('pendingValue'):
             self.search_events.append({'stage': self.stage, 'target': leaf['target'],
                 'routeStage':getattr(self,'entry_route_stage',None),'policy':leaf['policy'],
@@ -352,13 +393,13 @@ class Executor:
                 model_board=op.get('board',{})
                 model_blocks=model_board.get('blocks',[])
                 goal_pos=model_board.get('fpos',0)
-                creates_goal_group=(goal_pos<len(model_blocks) and model_blocks[goal_pos]['combo']
+                creates_goal_group=(goal_pos<len(model_blocks) and (model_blocks[goal_pos]['combo']
+                                    or self.policies[leaf['policy']].get('extensionExit'))
                                     and model_blocks[goal_pos]['value']==leaf['target'])
-                if reply['success'] and leaf['exit']=='extend' and index==len(ops)-1 and creates_goal_group:
+                if (reply['success'] and leaf['exit']=='extend' and index==len(ops)-1 and creates_goal_group
+                        and sum(current['tower'][i]['value'] for i in selected)==leaf['target']):
                     if not fixed or selected[0] != fixed[-1]+1:
                         raise IncompatibleState('Extended group is not adjacent')
-                    if sum(current['tower'][i]['value'] for i in selected) != leaf['target']:
-                        raise IncompatibleState('Wrong extended group sum')
                     selected = [fixed[-1]] + selected
                     self._check_extension(current, selected)
                 action['indices'] = selected
@@ -449,13 +490,24 @@ class Executor:
                 if kind=='buffer' and current['tower'][boundary]['physicalCount']>4:
                     raise RouteFailure('buffer-exceeds-four-cells')
                 protected.append(boundary)
-            if (kind=='single' and self.policies[leaf['policy']].get('successNoExtraCombos')
+            if (self.policies[leaf['policy']].get('successNoExtraCombos')
                     and any(t['kind']=='group' for i,t in enumerate(current['tower']) if i not in protected)):
                 raise RouteFailure('single-exit-has-extra-group')
-            if kind=='single' and not self._tidy_single_exit(leaf,[t for i,t in enumerate(current['tower']) if i not in protected]):
+            if not self._tidy_single_exit(leaf,[t for i,t in enumerate(current['tower']) if i not in protected]):
                 raise RouteFailure('single-exit-residual-exceeds-limit')
             if not protected or protected != list(range(protected[0], protected[-1]+1)):
                 raise IncompatibleState('Terminal protected segment is not contiguous')
+            expected=leaf.get('singleConnectionAfter') or leaf.get('after')
+            if expected:
+                actual=[[current['tower'][i]['value'],current['tower'][i]['physicalCount'],
+                         current['tower'][i]['kind']=='group'] for i in protected]
+                valid=len(actual)==len(expected) and all(
+                    (got[0]==want[0] and 1<=got[1]<=want[1]) if len(want)==4 and want[3]
+                    else got==want for got,want in zip(actual,expected))
+                if not valid:raise RouteFailure('fixed-policy-exit-rejected')
+            handoff=getattr(self,'handoff_validator',None)
+            if handoff is not None and not handoff(current,protected):
+                raise RouteFailure('fixed-policy-next-entry-rejected')
             self.final_fixed_indices = protected
             self.finish_after_queue = True
         if current['gameOver']:

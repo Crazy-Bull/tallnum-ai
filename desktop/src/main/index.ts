@@ -2,6 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Tray } from 'el
 import path from 'node:path'
 import { JobManager } from './jobs'
 import { AutomationManager } from './automation'
+import { IntegerPlannerManager } from './integerPlanner'
+import { Peak13PlannerManager } from './peak13Planner'
 
 // Also permits an isolated profile for packaged-app integration checks.
 const profile = app.commandLine.getSwitchValue('user-data-dir')
@@ -9,6 +11,8 @@ if (profile && path.isAbsolute(profile)) app.setPath('userData', profile)
 
 const manager = new JobManager()
 const automation = new AutomationManager()
+const integerPlanner = new IntegerPlannerManager()
+const peak13Planner = new Peak13PlannerManager()
 let window: BrowserWindow | null = null
 let tray: Tray | null = null
 let quitting = false
@@ -30,6 +34,13 @@ function createWindow(): void {
 }
 
 function registerIpc(): void {
+  ipcMain.handle('peak13:status', () => peak13Planner.snapshot())
+  ipcMain.handle('peak13:templates', () => peak13Planner.templates())
+  ipcMain.handle('peak13:start', (_event, request) => peak13Planner.start(request))
+  ipcMain.handle('peak13:stop', () => peak13Planner.stop())
+  ipcMain.handle('integer-planner:status', () => integerPlanner.snapshot())
+  ipcMain.handle('integer-planner:start', (_event, request) => integerPlanner.start(request))
+  ipcMain.handle('integer-planner:stop', () => integerPlanner.stop())
   ipcMain.handle('automation:status', () => automation.snapshot())
   ipcMain.handle('automation:start', (_event, request) => automation.start(request))
   ipcMain.handle('automation:control', (_event, mode) => automation.control(mode))
@@ -38,7 +49,6 @@ function registerIpc(): void {
   ipcMain.handle('jobs:create', (_event, spec) => manager.create(spec))
   ipcMain.handle('jobs:pause', (_event, id) => manager.pause(id))
   ipcMain.handle('jobs:resume', (_event, id) => manager.resume(id))
-  ipcMain.handle('jobs:updateBudget', (_event, id, budget) => manager.updateBudget(id, budget))
   ipcMain.handle('jobs:cancel', (_event, id) => manager.cancel(id))
   ipcMain.handle('jobs:logs', (_event, id) => manager.logs(id))
   ipcMain.handle('files:chooseDirectory', () => manager.chooseDirectory())
@@ -53,13 +63,13 @@ app.whenReady().then(async () => {
   await manager.load()
   registerIpc()
   createWindow()
-  const iconPath = app.isPackaged ? path.join(process.resourcesPath, 'native', 'tray.png') : path.resolve(__dirname, '../../assets/tray.png')
+  const iconPath = app.isPackaged ? path.join(process.resourcesPath, 'native', 'tray.png') : path.resolve(__dirname, '../../native/tray.png')
   const icon = nativeImage.createFromPath(iconPath)
   tray = new Tray(icon)
   tray.setToolTip('Tallnum 计算器')
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '打开 Tallnum', click: () => window?.show() },
-    { label: '保存并退出', click: async () => { await automation.stop(); await manager.beforeQuit(); quitting = true; app.quit() } }
+    { label: '保存并退出', click: async () => { await peak13Planner.stop(); await integerPlanner.stop(); await automation.stop(); await manager.beforeQuit(); quitting = true; app.quit() } }
   ]))
   tray.on('double-click', () => window?.show())
   app.on('activate', () => { if (!window || window.isDestroyed()) createWindow(); else window.show() })
@@ -70,6 +80,6 @@ app.on('before-quit', event => {
   if (quitting) return
   event.preventDefault()
   void dialog.showMessageBox({ type: 'question', message: '保存当前计算并退出？', buttons: ['保存并退出', '继续运行'], defaultId: 0, cancelId: 1 }).then(async answer => {
-    if (answer.response === 0) { await automation.stop(); await manager.beforeQuit(); quitting = true; app.quit() }
+    if (answer.response === 0) { await peak13Planner.stop(); await integerPlanner.stop(); await automation.stop(); await manager.beforeQuit(); quitting = true; app.quit() }
   })
 })
