@@ -1,3 +1,4 @@
+import { Localized } from './i18n'
 import React, { useEffect, useState } from 'react'
 import type { IntegerPlannerRequest, IntegerPlannerStatus } from '../../shared'
 
@@ -36,7 +37,7 @@ export function IntegerPlanner(): React.JSX.Element {
     .filter(s => all || s.template === `5:${result.ceiling}:${s.exit}`) || []
   const valid = Number.isInteger(request.target) && request.target >= 2 && request.target <= 65535
     && (request.target % 2 === 0 || request.target === 15) && request.maximum >= request.target
-  return <>
+  return <Localized><>
     <header className="page-header"><div><span className="eyebrow">ROUTE PLANNER</span><h1>大数路线规划</h1><p>优先降低最高阶定式，再减少该阶调用。所有定式均为五格，定式目标至少为 24。</p></div></header>
     {(error || status?.error) && <div className="error" role="alert">{error || status?.error}</div>}
     <section className="panel"><h2>合成目标</h2><fieldset disabled={busy} className="planner-fields"><div className="form-grid">
@@ -63,5 +64,5 @@ export function IntegerPlanner(): React.JSX.Element {
       <ol className="planner-steps">{steps.slice(0,visible).map(s => <li key={s.index}><strong>步骤 {s.index} · {s.kind === 'leaf' ? `${s.policyCells}格 ${s.target} ${exits[s.exit || ''] || ''}` : s.kind === 'group' ? '组合普通成员' : 'EDGE 合并'}</strong><p>{board(s.before)} → {board(s.after)}</p>{s.availableCells !== undefined && <small>可用工作格：{s.availableCells}</small>}</li>)}</ol>
       {steps.length > visible && <button onClick={() => setVisible(visible + 100)}>再显示 100 步</button>}
     </section>}</>}
-  </>
+  </></Localized>
 }

@@ -1,3 +1,4 @@
+import { Localized } from './i18n'
 import React, { useEffect, useState } from 'react'
 import type { AutomationRequest, AutomationStatus } from '../../shared'
 
@@ -23,7 +24,7 @@ export function Automation(): React.JSX.Element {
     void act(() => window.tallnum.automationStart({ command, directory, target, rounds, attempts, plannerVersion }))
   }
   const busy = !!status?.busy
-  return <>
+  return <Localized><>
     <header className="page-header"><div><span className="eyebrow">AUTOMATIC PLAY</span><h1>五格定式组合 · 目标 {target}</h1><p>{plannerVersion === 1 ? '七格二分、六格只取最均衡的一组三分。' : '搜索等值合并、Group 补齐与 EDGE 路线。'}按包含失败重开的总期望出数选择路线。</p></div></header>
     {(error || status?.error) && <p className="error-inline">{error || status?.error}</p>}
     <section className="panel"><h2>路线计算</h2><div className="form-grid">
@@ -53,5 +54,5 @@ export function Automation(): React.JSX.Element {
       {status.validation.results.map((r, i) => <p key={r.routeId}>候选 {i + 1}：成功率 {(r.successRate * 100).toFixed(2)}% · 总期望出数 {r.expectedTotalDrops?.toFixed(2) ?? '不可估计'} · 不匹配 {r.incompatible} · 未结束 {r.unfinished}</p>)}
     </section>}
     <section className="panel"><h2>运行记录 {busy ? '· 运行中' : ''}</h2><pre>{status?.events.slice(-20).map(e => JSON.stringify(e)).join('\n') || '尚未运行。'}</pre></section>
-  </>
+  </></Localized>
 }

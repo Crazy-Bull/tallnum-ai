@@ -1,3 +1,4 @@
+import { Localized } from './i18n'
 import React, { useEffect, useState } from 'react'
 import type { Peak13Status, Peak13Step } from '../../shared'
 
@@ -51,7 +52,7 @@ export function Peak13Planner(): React.JSX.Element {
     setCustomTemplates([...new Set([...(customTemplates || []), key])].sort())
     setNewTemplate(''); setError('')
   }
-  return <>
+  return <Localized><>
     <header className="page-header"><div><span className="eyebrow">PROBABILITY ROUTE PLANNER</span><h1>概率表路线规划</h1><p>先降低最高五格定式，再减少该阶调用次数。通过动态规划复用构造，输出前核对完整盘面和概率表。</p></div></header>
     {(error || status?.error) && <div className="error" role="alert">{error || status?.error}</div>}
     <section className="panel"><h2>生成路线</h2><p className="phase">定式至少 5 格、目标至少 24；定式目标上限由数值范围与用户选择决定。搜索只使用待出数状态概率表；路线的随机成功率须另行实测。</p>
@@ -83,5 +84,5 @@ export function Peak13Planner(): React.JSX.Element {
       <ol className="planner-steps">{steps.slice(0, visible).map(step => <li key={step.index}><strong>第 {step.index} 步 · {action(step)}</strong><p>{describe(step.before)} → {describe(step.after)}</p></li>)}</ol>
       {visible < steps.length && <button onClick={() => setVisible(visible + 100)}>再显示 100 步</button>}
     </section></>}
-  </>
+  </></Localized>
 }

@@ -1,0 +1,59 @@
+{
+  "kind": "local-live-game-evidence",
+  "playedOn": "2026-10-14",
+  "numberSet": "standard",
+  "towerLimit": 10,
+  "finalBoardSum": 18476,
+  "largestOrdinaryTile": 12288,
+  "drops": 38009,
+  "actions": 58824,
+  "first12288Drops": 19842,
+  "first12288Actions": 30610,
+  "virtualContinuation": {
+    "realBottom": 12288,
+    "plannerBottom": 6144,
+    "gameValueModified": false
+  },
+  "finalBoard": [
+    {
+      "value": 12288,
+      "kind": "tile",
+      "physicalCount": 1
+    },
+    {
+      "value": 6144,
+      "kind": "group",
+      "physicalCount": 5
+    },
+    {
+      "value": 15,
+      "kind": "tile",
+      "physicalCount": 1
+    },
+    {
+      "value": 2,
+      "kind": "tile",
+      "physicalCount": 1
+    },
+    {
+      "value": 12,
+      "kind": "tile",
+      "physicalCount": 1
+    },
+    {
+      "value": 15,
+      "kind": "tile",
+      "physicalCount": 1
+    }
+  ],
+  "screenshot": "docs/images/tallnum-live-18476.png",
+  "screenshotSha256": "aad4905a62e0e1f5e64772cdccf18b343e9886f5cf963a967b3ae8910b47362d",
+  "sourceRoundLedgerSha256": "7c86eb9cc7eb0cf03cb188a4a9b2b303e6930934af9aedea50592792f22ce371",
+  "leaderboardPlacementVerified": false,
+  "notes": [
+    "Board sum is not a single ordinary tile.",
+    "Screenshot is original and unedited; site validation/upload was pending.",
+    "Full live journal and browser profile are not distributed.",
+    "This is one live round, separate from the seeded 100-game route tests."
+  ]
+}
